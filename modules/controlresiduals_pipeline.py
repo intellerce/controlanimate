@@ -1,19 +1,24 @@
+##############################################
+# INTELLERCE LLC - Oct. - Nov. 2023 
+# This codebase is designed and written for research, test and demo purposes only
+# and is not recommended for production purposes.
 
+# Created by: Hamed Omidvar
+##############################################
 
-import datetime
 import os
 import cv2
+import torch
+import datetime
 import numpy as np
 from PIL import Image
-from controlnet_aux import OpenposeDetector, MLSDdetector, NormalBaeDetector, HEDdetector
-from controlnet_aux import LineartDetector, LineartAnimeDetector, PidiNetDetector
-from transformers import pipeline, CLIPFeatureExtractor
-
-from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
-import torch
-from diffusers.pipelines.controlnet.multicontrolnet import MultiControlNetModel
-
 from einops import rearrange
+from transformers import pipeline
+from diffusers import  ControlNetModel
+from diffusers.pipelines.controlnet.multicontrolnet import MultiControlNetModel
+from controlnet_aux import LineartDetector, LineartAnimeDetector, PidiNetDetector
+from controlnet_aux import OpenposeDetector, MLSDdetector, NormalBaeDetector, HEDdetector
+
 
 class MultiControlNetResidualsPipeline:
     def __init__(self, hf_controlnet_names, cond_scale):

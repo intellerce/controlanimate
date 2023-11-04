@@ -1,18 +1,18 @@
-# Adapted from https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py
+# Adapted from # Adapted from AnimateDiff: https://github.com/guoyww/AnimateDiff
+# and https://github.com/huggingface/diffusers
 
-import inspect
-from typing import Callable, List, Optional, Union
-from dataclasses import dataclass
 
-import numpy as np
-import torch
 import PIL
+import torch
+import inspect
+import numpy as np
 from tqdm import tqdm
-
-from diffusers.utils import is_accelerate_available
+from einops import rearrange
 from packaging import version
+from dataclasses import dataclass
+from typing import Callable, List, Optional, Union
+from diffusers.utils import is_accelerate_available
 from transformers import CLIPTextModel, CLIPTokenizer
-
 from diffusers.configuration_utils import FrozenDict
 from diffusers.models import AutoencoderKL
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
@@ -26,7 +26,7 @@ from diffusers.schedulers import (
 )
 from diffusers.utils import deprecate, logging, BaseOutput
 
-from einops import rearrange
+
 
 from ..models.unet import UNet3DConditionModel
 from ..utils.util import preprocess_image
@@ -315,36 +315,19 @@ class AnimationPipeline(DiffusionPipeline):
 
         if frames_latents:
             for i in range(video_length):
-                # init_alpha = (video_length - float(i)) / video_length  / 20
-                # alpha = 1/30 # TODO: set
-
                 shape = frames_latents[i].shape
-
-                # print("SHAPE>>>>>>>>>>>", shape)
-
                 noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-
-                # latents = torch.randn(shape, generator=generator, device=rand_device, dtype=dtype).to(device)
-
-                # print("NOISE SHAPE >>>>>" , noise.shape)
-                # print("SHAPE AFTER NOISE:", self.scheduler.scale_model_input(self.scheduler.add_noise(frames_latents[i], noise, self.scheduler.timesteps),i).shape)
-                # print("TIME STEPS", self.scheduler.timesteps)
-                # print("LATENT TIMESTEP", latent_timestep)
-                # print("NOISY SAMPLES SHAPE", self.scheduler.add_noise(frames_latents[i], noise, latent_timestep).shape)
-
                 # get latents
                 if i < overlaps:
                     latents[:, :, i, :, :] = self.scheduler.add_noise(frames_latents[i], noise, latent_timestep)
                 else:
                     latents[:, :, i, :, :] = self.scheduler.add_noise(frames_latents[i], noise, latent_timestep)
-
-                # latents[:, :, i, :, :] = frames_latents[i] * alpha + latents[:, :, i, :, :] * (1 - alpha)
         
         latents = latents.to(device)
 
         # scale the initial noise by the standard deviation required by the scheduler
-        # if frames_latents == []:
-        # latents = latents * self.scheduler.init_noise_sigma
+        if frames_latents == []:
+            latents = latents * self.scheduler.init_noise_sigma
 
         return latents
 

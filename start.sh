@@ -2,8 +2,8 @@
 
 config="configs/prompts/SampleConfig.yaml"
 
+echo "Running ${config} ..."
+
 export PYTHONPATH="${PYTHONPATH}:./"
 
-conda activate controlanimate
-
-python main
+python main.py --config "${config}"

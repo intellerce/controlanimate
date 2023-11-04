@@ -1,39 +1,19 @@
+##############################################
+# INTELLERCE LLC - Oct. - Nov. 2023 
+# This codebase is designed and written for research, test and demo purposes only
+# and is not recommended for production purposes.
+
+# Created by: Hamed Omidvar
+##############################################
+
 import os
-import uuid
 import cv2
 import torch
-
-# from sys import platform
-# import requests
-# import tempfile
-# from logger import Logger
-# from moviepy.editor import ImageClip, AudioFileClip, TextClip, CompositeVideoClip, CompositeAudioClip, concatenate_videoclips, concatenate_audioclips
-# import moviepy.video.fx.all as vfx
-# import moviepy.audio.fx.all as afx
-from typing import Any, Callable, Dict, List, Optional, Union
-from uuid import UUID, uuid4
-from pydantic import BaseModel, Field
-import asyncio
 import numpy as np
-import random
+from PIL import Image
+from einops import rearrange
 from subprocess import Popen, PIPE
 
-from PIL import Image
-
-from einops import rearrange
-
-def get_frames_pil_images(videos: torch.Tensor, rescale=False, n_rows=6, fps=8):
-    frames = rearrange(videos, "b c t h w -> (t b) c h w")
-    outputs = []
-    for x in frames:
-        x = x.transpose(0, 1).transpose(1, 2).squeeze(-1)
-        if rescale:
-            x = (x + 1.0) / 2.0  # -1,1 -> 0,1
-        x = (x * 255).numpy().astype(np.uint8)
-        x = Image.fromarray(x)
-        outputs.append(x)
-    
-    return outputs
 
 
 def video_to_high_fps(output_name, video_file_path, audio_path, processed_file_save_dir, time_interval, fps_ffmpeg, crf = 17):
@@ -84,7 +64,18 @@ def get_fps_frame_count_width_height(video_file_path):
 
     return fps, frame_count, width, height
 
-
+def get_frames_pil_images(videos: torch.Tensor, rescale=False, n_rows=6, fps=8):
+    frames = rearrange(videos, "b c t h w -> (t b) c h w")
+    outputs = []
+    for x in frames:
+        x = x.transpose(0, 1).transpose(1, 2).squeeze(-1)
+        if rescale:
+            x = (x + 1.0) / 2.0  # -1,1 -> 0,1
+        x = (x * 255).numpy().astype(np.uint8)
+        x = Image.fromarray(x)
+        outputs.append(x)
+    
+    return outputs
 
 # The following class takes care of FFMPEG processes for decoding and encoding video files
 class FFMPEGProcessor:
@@ -115,15 +106,8 @@ class FFMPEGProcessor:
             self.process.stdin.close()
 
 
-
-
-
 if __name__ == '__main__':
 
-    # get_fps_frame_count_width_height('./data/test.mp4')
-    # video_add_audio('av_test1.mp4', './data/test.mp4', './data/test.mp4', './data', "-ss 00:00:00 -to 00:00:01", 30, 17)
-    # vid2vid_params = Vid2Vid_Params()
-    # print(vid2vid_params.__dict__)
     start_time = "00:00:00"
     end_time = "00:00:02"
 

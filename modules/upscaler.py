@@ -1,18 +1,18 @@
+##############################################
+# INTELLERCE LLC - Oct. - Nov. 2023 
+# This codebase is designed and written for research, test and demo purposes only
+# and is not recommended for production purposes.
+
+# Created by: Hamed Omidvar
+##############################################
+
 
 import os
 import numpy as np
 from PIL import Image
-import torch
-
+from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from basicsr.utils.download_util import load_file_from_url
-
-from realesrgan import RealESRGANer
-# from realesrgan.archs.srvgg_arch import SRVGGNetCompact
-
-
-
-
 
 class Upscaler():
     def __init__(self, scale, use_face_enhancer = True, upscale_first = False):

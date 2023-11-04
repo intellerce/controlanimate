@@ -91,7 +91,7 @@ def vid2vid(
     ffmpeg_decoder = FFMPEGProcessor(
                 " ".join(
                     [
-                        "ffmpeg" +  " -y -loglevel panic",
+                        "ffmpeg" +  " -y -loglevel quiet",
                         f'{cmd_time_string} -i "{input_file_path}"',
                         "-vf eq=brightness=0.06:saturation=4",
                         f"-s:v {width_64}x{height_64} -r {config.fps}",
@@ -102,7 +102,7 @@ def vid2vid(
                 std_out=True,
             )
 
-    output_file_name = f"v_{os.path.basename(config.input_video_path).split('.')[0]}_{date_time}.mp4"
+    output_file_name = f"Video_{os.path.basename(config.input_video_path).split('.')[0]}_{date_time}.mp4"
 
     if not os.path.exists(config.output_video_dir):
         os.makedirs(config.output_video_dir)
@@ -114,7 +114,7 @@ def vid2vid(
     ffmpeg_encoder = FFMPEGProcessor(
                 " ".join(
                     [
-                        "ffmpeg" +  " -y -loglevel debug",
+                        "ffmpeg" +  " -y -loglevel quiet",
                         "-f rawvideo -pix_fmt rgb24",
                         "-vcodec rawvideo",
                         f"-s:v {width_64_out}x{height_64_out}",
@@ -209,8 +209,6 @@ def vid2vid(
                 os.makedirs(dir)
                 with open(os.path.join(dir, 'info.json'), 'w') as f:
                     params = OmegaConf.to_container(config, resolve=True)
-                    # params = {key: value for (key, value) in config.__dict__.items() if key != 'sd' and key != 'videojob' and key != '_metadata'}
-                    print("PARAMS:", params)
                     json.dump(params, f, indent=2)
             for frame in pil_images_batch[:(len(pil_images_batch)-len(overlap_frames))]:
                 frame.save(os.path.join(dir_in_frames,"{:04d}.png".format(in_frame_count)))
@@ -229,7 +227,7 @@ def vid2vid(
     time.sleep(5)
 
     # Adding audio to the final video
-    output_w_audio_file_name = 'a' + output_file_name
+    output_w_audio_file_name = 'Audio' + output_file_name
     final_process = video_to_high_fps(output_w_audio_file_name, # Name of the final output
                     os.path.join(config.output_video_dir,output_file_name), # Video to add audio
                     input_file_path, # Input video to use its audio

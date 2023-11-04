@@ -1,8 +1,8 @@
 # ControlAnimate
 
-Combining AnimateDiff with Multi-ControlNet and Img2Img for Vid2Vid applications.
+- Combining AnimateDiff with Multi-ControlNet and Img2Img for Vid2Vid applications.
 This small library is especially focused on Vid2Vid applications and allows one to use ControlNet (or Multi-ControlNet) to guide the video generation. 
-In addition it uses Img2Img for creating more consistent videos (after the first epoch).
+- In addition it uses Img2Img for creating more consistent videos (after the first epoch).
 Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition to the Stable Diffusion 1.5 base model. 
 - This is an initial release so please expect potential issues and bugs. Feedback, suggestions, and feature request are welcome.
 
@@ -10,32 +10,33 @@ Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition t
 
 
 ## Compatibility and Requirements
-This codebase was tested on Linux (Ubuntu 22.04) only.
+- This codebase was tested on Linux (Ubuntu 22.04) only.
 It was tested on an Intel machine with NVIDIA Gefore RTX 3090 (24 GB VRAM) and requires at least 16 GB of RAM.
 
 ## Installation
-Make sure you have Anaconda installed (https://www.anaconda.com/download).
+- Make sure you have Anaconda installed (https://www.anaconda.com/download).
 
 ```
 git clone https://github.com/intellerce/ControlAnimate.git
 cd ControlAnimate
 
-bash install.sh
-```
+bash download.sh
 
-Tested on a machine with a single RTX 3090.
+conda env create -f env.yml
+```
 
 ### Vid2Vid
-After setting the config file 'configs/prompts/SampleConfig.yaml', simply run the following:
+- After setting the config file 'configs/prompts/SampleConfig.yaml', simply run the following:
 ```
+conda activate controlanimate
 bash start.sh
 ```
-
+Tested on a machine with a single RTX 3090.
 
 ## Prompt Weighting
-Prompt weighting is based on Compel. You can use + or (...)+ for importance or add weights like this: (cat)1.2
+- Prompt weighting is based on Compel. You can use + or (...)+ for importance or add weights like this: (cat)1.2
 Similarly you can use the negative sign (-) to reduce the weight or use weights below 1.
-Please refer to ??? for more info.
+Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for more info.
 
 ## A Few Results
 ...
