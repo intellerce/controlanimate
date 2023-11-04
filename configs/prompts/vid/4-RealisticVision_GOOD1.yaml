@@ -1,0 +1,107 @@
+# Config File:
+
+######################################################
+# INPUTS
+######################################################
+input_video_path: "tmp/dance6_cropped.mp4" # Path to the input video file
+output_video_dir: "tmp/output"  # Directory to save the outputs
+
+save_frames: 1
+
+# Width and Height of the Input and Output videos
+# If zero the input's video dimension will be used otherwise the input will be resized
+width: 512
+height: 768
+
+# prompt: "highly detailed 25 y.o. (Tom Cruise)+ walking (high quality)+ 4k resolution realistic best quality in the jungle+"
+prompt: "A girl with perfect++ face++ (female villain)+, (waves of golden ocean in the background)+ (perfect face)++, (perfect eyes)++ (bright golden room)+++ (muscle body)0.2, (adorned in dark and stylish)+, (gold suit)+ (gold shirt)+ (golden clothes)++, (sharp features)+, (intense eyes)+, (commanding posture)+, (aura of malevolence and mystery)+, (phenomenal aesthetic)+, sumptuous artwork, breath of the wild, masterpiece, best quality, sharp focus, dramatic lighting, 8k, uhd, dslr, vivid color, cinematic lighting , matte painting , cinematic photo, realistic photo, body photo, walking forward, high quality"
+n_prompt: "easynegative+, tint, blue tint, blue, mask++, (bad face)+++, (worst quality)+, (low quality)+, lowres, bad anatomy, (monochrome)++, (grayscale)+, (text, font, logo, copyright, watermark)++, wrong face, wrong hands, wrong legs, wrong feet, (nsfw,nude)+"
+# n_prompt: "3d, render, sketch, cartoon, drawing, anime, text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck"
+
+# Additional Basic Parameters
+start_time: "00:00:01" # Time in HH:MM:SS format to start reading the input video
+end_time: "00:00:04" # Time in HH:MM:SS format to stop reading the input video
+
+# Use img2img or not
+use_img2img: 0
+
+# Use the last frame of each AnimateDiff output sequence as reference for the next epoch using the following img2img strength
+overlap_strength: .9
+
+
+######################################################
+# MODELS
+######################################################
+
+# Base model that AnimateDiff uses to create the initial architecture from (it needs to be in HuggingFace format (.bin))
+pretrained_model_path: "models/StableDiffusion/stable-diffusion-v1-5"
+
+# Optional Alternative AutoEncoder (VAE)
+vae_path: "models/VAE/vae-ft-mse-840000-ema-pruned.ckpt" #"models/VAE/vae-ft-ema-560000-ema-pruned.safetensors"
+
+# Optional DreamBooth Model (full)
+dreambooth_path: "models/DreamBooth_LoRA/dreamshaper_8.safetensors" 
+
+# Optional LoRA model to be used
+lora_model_path: "" #models/DreamBooth_LoRA/genshin_impact_yoimiya.safetensors
+lora_weight: #0.8
+
+# Motion Module to be used - versions of the config and the model must match
+inference_config_path: "configs/inference/inference-v2.yaml"
+motion_module: "models/Motion_Module/mm_sd_v15_v2.ckpt"
+
+# Optional ControlNet Models to be used - will be downloaded automatically
+controlnets:
+  - lllyasviel/control_v11p_sd15_openpose
+  # - lllyasviel/control_v11p_sd15_lineart
+  # - lllyasviel/control_v11p_sd15_mlsd
+  # - lllyasviel/sd-controlnet-canny
+  # - lllyasviel/control_v11p_sd15_softedge
+  # - lllyasviel/sd-controlnet-mlsd
+      # - lllyasviel/sd-controlnet-openpose
+  - lllyasviel/control_v11p_sd15s2_lineart_anime
+
+cond_scale: 
+  - 1.0
+  - 0.6
+  # - 0.5
+
+
+######################################################
+# PARAMETERS
+######################################################
+
+upscale: 2 # Upscaler value for the input image
+use_face_enhancer: 0 # 0: No, 1: Yes
+
+frame_count: 16 # How many co-related frames are produced by AnimateDiff - defaults to 16
+overlap_length: 3 # Number of frames from previous output frames to be present in the current frames (helps with consistency)
+
+seed: 19880 # 19880 behind curtain! #2061 #27981  #-1 #17209 # 13100322578370451493 #49423 #2044 # 17209 # 7896584711347126523 # 13100322578370451493 #17614 # 7896584711347126523
+steps: 25
+guidance_scale: 7.5
+strength: 1.0 # Strengtht of the noise to be added to input latents - if 1.0 the img2img effect is nil
+
+
+# Choice of scheduler: "DDIMScheduler", "EulerDiscreteScheduler" ,"DPMSolverMultistepScheduler","EulerAncestralDiscreteScheduler","EulerDiscreteScheduler","LMSDiscreteScheduler","PNDMScheduler"
+scheduler:  "EulerDiscreteScheduler"           
+
+
+fps: 12 # The framerate to sample the input video
+fps_ffmpeg: 23 # The framerate of the output video
+crf: 23 # A measure of quality - lower is better 
+
+# The following controlnets are used to process the overlapping frames between AnimateDiff runs
+# overlap_controlnets: 
+
+# overlap_cond_scale:
+#  - 1.0
+
+# L: 16
+
+
+
+
+
+
+

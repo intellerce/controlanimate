@@ -1,0 +1,37 @@
+# RealisticVision:
+input_video_path: "tmp/walk.mp4"
+output_video_dir: "tmp/output"
+
+start_time: "00:00:00" 
+end_time: "00:00:02"
+
+pretrained_model_path: "models/StableDiffusion/stable-diffusion-v1-5"
+inference_config_path: "configs/inference/inference-v1.yaml"
+motion_module:
+  - "models/Motion_Module/mm_sd_v15.ckpt"
+
+dreambooth_path: "models/DreamBooth_LoRA/realisticVisionV20_v20.safetensors" 
+#"models/DreamBooth_LoRA/realisticVisionV20_v20.safetensors" "models/DreamBooth_LoRA/realisticVisionV51_v20Novae.safetensors"   
+lora_model_path: ""
+
+L: 16
+W: 512
+H: 512
+fps: 12
+fps_ffmpeg: 30
+crf: 17
+
+frame_count: 16
+
+
+seed:           13100322578370451493 #, 14752961627088720670, 9329399085567825781, 16987697414827649302]
+steps:          70
+guidance_scale: 9.5
+strength: 0.4
+
+prompt:
+  - "realistic highly detailed photo of 25 y.o wonder woman perfect eyes extremely sexy, full body, standing, posing, body, high detailed skin, caucasian, skin pores, overcast weather, 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT3"
+
+n_prompt:
+  - "semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck"
+
