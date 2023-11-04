@@ -23,7 +23,7 @@ cd ControlAnimate
 bash install.sh
 ```
 
-Tested on a single RTX 3090.
+Tested on a machine with a single RTX 3090.
 
 ### Vid2Vid
 After setting the config file 'configs/prompts/SampleConfig.yaml', simply run the following:
@@ -48,6 +48,7 @@ The code was tested on Linux and will not work on Windows currently (at least th
 
 ## Todo
 - [x] GitHub Release
+- [ ] Additional Improvements
 - [ ] Windows Support
 - [ ] Fixing xformers Issues and GPU Memory Optimization
 - [ ] Interface
@@ -61,9 +62,9 @@ The code was tested on Linux and will not work on Windows currently (at least th
 This codebase is released under the Apache v2.0 license. For the licenses of the codebases that this repository is based on please refer to their corresponding Github/Website pages.
 
 ## Acknowledgements
-This codebase was built upon the following repositories:
+This codebase was built upon and/or inspired by the following repositories:
 [AnimateDiff](https://github.com/guoyww/AnimateDiff)
 [Diffusers](https://github.com/huggingface/diffusers)
 [Video2Video](https://github.com/Filarius/video2video)
 
-The author would like to thank Kalin Ovtcharov (Extropolis Corp.) for suggestions and invaluable feedback.
+The author would like to thank Kalin Ovtcharov (Extropolis Corp.) for invaluable feedback and suggestions.

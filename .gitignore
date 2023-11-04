@@ -11,5 +11,7 @@ draft
 tmp
 */weights
 weights
-__pycache__
+models
+cache
+
 

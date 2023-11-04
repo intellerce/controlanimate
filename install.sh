@@ -9,5 +9,5 @@ bash download_bashscripts/VAE.sh
 
 
 
-conda env create -f env.yml
+# conda env create -f env.yml
 
