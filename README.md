@@ -38,14 +38,14 @@ Tested on a machine with a single RTX 3090.
 Similarly you can use the negative sign (-) to reduce the weight or use weights below 1.
 Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for more info.
 
-## A Few Results
+## Results
 ...
 
 
 ## Known Issues
 This is an initial release so please expect some potential bugs and issues.
-Currently memory optimization using xformers does not work properly and leads to some unclear errors so it is disabled in this release.
-The code was tested on Linux and will not work on Windows currently (at least the FFMPEGProcessor needs to be updated).
+Currently, memory optimizations using xformers does not work properly and leads to some unclear errors. So it has been partially disabled in this release (for the Motion Modules).
+The code was tested on Linux and will not work on Windows currently (at least the FFMPEGProcessor needs to be modified).
 
 ## Todo
 - [x] GitHub Release
@@ -57,6 +57,7 @@ The code was tested on Linux and will not work on Windows currently (at least th
 
 ## Contact Us
 **Hamed Omidvar, Ph.D.**: [hamed.omidvar@intellerce.com](mailto:hamed.omidvar@intellerce.com)  
+**Vahideh Akhlaghi, Ph.D.**: [vahideh.akhlaghi@intellerce.com](mailto:vahideh.akhlaghi@intellerce.com)  
 
 
 ## License
