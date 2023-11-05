@@ -39,8 +39,9 @@ Similarly you can use the negative sign (-) to reduce the weight or use weights 
 Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for more info.
 
 ## Results
-...
-
+[![ControlAnimate]          // Title
+()] // Thumbnail
+(https://www.youtube.com/watch?v=NHYkhKB6Nd4 "ControlAnimate")    // Video Link
 
 ## Known Issues
 This is an initial release so please expect some potential bugs and issues.
