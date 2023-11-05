@@ -248,9 +248,6 @@ class MultiControlNetResidualsPipeline:
                 prep_image = self.prepare_controlnet_input_image(ctrl_name, image)
                 if save_outputs:
                     prep_image.save(os.path.join(out_dir,"{}_{:04d}.png".format(epoch,i)))
-                # prep_image = prep_image.to(device='cuda', dtype=self.multicontrolnet.dtype)
-                # if do_classifier_free_guidance and not guess_mode: #TODO
-                # image = torch.cat([image] * 2)
                 prep_image = self.prepare_images([prep_image], width, height ,1,1,'cuda',self.multicontrolnet)
                 if ctrl_images is not None:
                     ctrl_images = torch.cat([ctrl_images, prep_image[0]])
@@ -278,26 +275,10 @@ class MultiControlNetResidualsPipeline:
                  guess_mode = False):
         
 
-            # self.move_to_device(ctrl_name, 'cpu')
-        
-        # print("IMAGES IN PREP IMAGES SHAPE:", prep_images[0].shape)
-            # prep_image.show()
-
-            # print("IMAGE SHAPE BEFORE H,W:", prep_images[0].size)
-
-            
-
-            # print("IMAGE SHAPE AFTER:", prep_images[0].shape)
-            
-            # print("DTYPES", control_model_input.dtype, controlnet_prompt_embeds.dtype)
         
         control_model_input = rearrange(control_model_input, 'b c f h w -> (b f) c h w' )
 
-        # print("PREP IMAGES COUNT:", len(self.prep_images[0]))
-
         controlnet_prompt_embeds = torch.cat([controlnet_prompt_embeds] * (len(self.prep_images[0])//2))
-
-        # print("SHAPE of controlnet_prompt_embeds", controlnet_prompt_embeds.shape)
 
         down_block_res_samples_multi, mid_block_res_sample_multi = self.multicontrolnet(
             control_model_input.half(), #[:,:,i,:,:].half(),
@@ -308,11 +289,6 @@ class MultiControlNetResidualsPipeline:
             guess_mode=guess_mode,
             return_dict=False,
             )
-        
-        # print("SHAPE OF RES OF CONTROLNET:", [a.shape for a in down_block_res_samples_multi])
-
-            # print()
-        # self.multicontrolnet.to('cpu')
-
+   
         return down_block_res_samples_multi, mid_block_res_sample_multi
                 

@@ -234,7 +234,8 @@ def vid2vid(
                     config.output_video_dir, # Save location
                     cmd_time_string,
                     config.fps_ffmpeg, 
-                    config.crf
+                    config.crf,
+                    ffmpeg_path=config.ffmpeg_path
                     )
 
     return final_process

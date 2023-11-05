@@ -16,7 +16,7 @@ from subprocess import Popen, PIPE
 
 
 
-def video_to_high_fps(output_name, video_file_path, audio_path, processed_file_save_dir, time_interval, fps_ffmpeg, crf = 17):
+def video_to_high_fps(output_name, video_file_path, audio_path, processed_file_save_dir, time_interval, fps_ffmpeg, crf = 17, ffmpeg_path = '/usr/bin/ffmpeg'):
     """
     The purpose of this function is increase the framerate of the input video (e.g., generated from output frames) by interpolation.
     It also adds audio to the input video.
@@ -33,7 +33,7 @@ def video_to_high_fps(output_name, video_file_path, audio_path, processed_file_s
     assert os.path.exists(video_file_path), 'Invalid video file path.'
     assert os.path.exists(audio_path), 'Invalid audio file path.'
     
-    cmd = ['ffmpeg', '-i', video_file_path,
+    cmd = [ffmpeg_path, '-i', video_file_path,
                 '-vn ' + time_interval  +  ' -i', audio_path,
                 '-q:v 0',
                 f'-crf {crf}',
