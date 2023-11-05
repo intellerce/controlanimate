@@ -91,7 +91,7 @@ def vid2vid(
     ffmpeg_decoder = FFMPEGProcessor(
                 " ".join(
                     [
-                        "ffmpeg" +  " -y -loglevel quiet",
+                        str(config.ffmpeg_path) +  " -y -loglevel error",
                         f'{cmd_time_string} -i "{input_file_path}"',
                         "-vf eq=brightness=0.06:saturation=4",
                         f"-s:v {width_64}x{height_64} -r {config.fps}",
@@ -114,7 +114,7 @@ def vid2vid(
     ffmpeg_encoder = FFMPEGProcessor(
                 " ".join(
                     [
-                        "ffmpeg" +  " -y -loglevel quiet",
+                        str(config.ffmpeg_path) +  " -y -loglevel error",
                         "-f rawvideo -pix_fmt rgb24",
                         "-vcodec rawvideo",
                         f"-s:v {width_64_out}x{height_64_out}",

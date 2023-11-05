@@ -6,7 +6,7 @@
 input_video_path: "tmp/dance6_cropped2.mp4" # Path to the input video file
 output_video_dir: "tmp/output"  # Directory to save the outputs
 
-save_frames: 1
+save_frames: 1 # 0: No, 1: Yes
 
 # Width and Height of the Input and Output videos
 # If zero the input's video dimension will be used otherwise the input will be resized
@@ -91,3 +91,10 @@ scheduler:  "EulerDiscreteScheduler"
 fps: 15 # The framerate to sample the input video
 fps_ffmpeg: 30 # The framerate of the output video
 crf: 23 # A measure of quality - lower is better 
+
+
+######################################################
+# ADDITIONAL
+######################################################
+
+ffmpeg_path: "/usr/bin/ffmpeg"

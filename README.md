@@ -1,10 +1,10 @@
 # ControlAnimate
 
 - Combining AnimateDiff with Multi-ControlNet and Img2Img for Vid2Vid applications.
-This small library is especially focused on Vid2Vid applications and allows one to use ControlNet (or Multi-ControlNet) to guide the video generation. 
+This small library is especially focused on Vid2Vid applications by using ControlNet (or Multi-ControlNet) to guide the video generation and AnimateDiff for concistency.
 - In addition it uses Img2Img for creating more consistent videos (after the first epoch).
 Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition to the Stable Diffusion 1.5 base model. 
-- This is an initial release so please expect potential issues and bugs. Feedback, suggestions, and feature request are welcome.
+- This is an initial release so please expect potential issues and bugs. Feedback, suggestions, and feature requests are welcome.
 
 ![ControlAnimate](./readme/fig1_wlogo.png?raw=true "ControlAnimate")
 
@@ -15,9 +15,12 @@ It was tested on an Intel machine with NVIDIA Gefore RTX 3090 (24 GB VRAM) and r
 
 ## Installation
 - Make sure you have Anaconda installed (https://www.anaconda.com/download).
+- Also make sure that FFMPEG is properly installed and set up (you can follow these guides for the installation: 
+["Guide 1"](https://ubuntuhandbook.org/index.php/2023/03/ffmpeg-6-0-released-how-to-install-in-ubuntu-22-04-20-04/safest-way-to-install-latest-stable-ffmpeg-4-3-on-ubuntu-20-04-ppa-not-wor) and if there are still issues this: 
+["Guide 2"](https://community.wolfram.com/groups/-/m/t/2188963) - You can set the FFMPEG path in the configs/prompts yamls files)
 
 ```
-git clone https://github.com/intellerce/ControlAnimate.git
+git clone git@github.com:intellerce/controlanimate.git
 cd ControlAnimate
 
 bash download.sh
@@ -48,9 +51,9 @@ The code was tested on Linux and will not work on Windows currently (at least th
 
 ## Todo
 - [x] GitHub Release
-- [ ] Additional Improvements
-- [ ] Windows Support
+- [ ] Bug Fixes and Improvements
 - [ ] Fixing xformers Issues and GPU Memory Optimization
+- [ ] Windows Support
 - [ ] Interface
 
 
