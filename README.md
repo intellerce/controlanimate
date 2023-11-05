@@ -29,7 +29,7 @@ conda env create -f env.yml
 ```
 
 ### Vid2Vid
-- After setting the config file 'configs/prompts/SampleConfig.yaml', simply run the following:
+- After setting the config file 'configs/prompts/SampleConfig.yaml', simply run the following (don't forget to point to a valid input video file):
 ```
 conda activate controlanimate
 bash start.sh
