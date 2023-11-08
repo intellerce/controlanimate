@@ -22,7 +22,7 @@ It was tested on an Intel machine with NVIDIA Gefore RTX 3090 (24 GB VRAM) and r
 - Make sure you have Anaconda installed (https://www.anaconda.com/download).
 - Also make sure that FFMPEG is properly installed and set up (you can follow these guides for the installation: 
 ["Guide 1"](https://ubuntuhandbook.org/index.php/2023/03/ffmpeg-6-0-released-how-to-install-in-ubuntu-22-04-20-04/safest-way-to-install-latest-stable-ffmpeg-4-3-on-ubuntu-20-04-ppa-not-wor) and if there are still issues this: 
-["Guide 2"](https://community.wolfram.com/groups/-/m/t/2188963) - You can set the FFMPEG path in the configs/prompts yamls files)
+["Guide 2"](https://community.wolfram.com/groups/-/m/t/2188963) - You can set the FFMPEG path in the configs/prompts yaml files)
 
 ```
 git clone git@github.com:intellerce/controlanimate.git
@@ -54,7 +54,7 @@ Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for 
 
 ## Known Issues
 This is an initial release so please expect some potential bugs and issues.
-Currently, memory optimizations using xformers does not work properly and leads to some unclear errors. So it has been partially disabled in this release (for the Motion Modules).
+Currently, memory optimizations using xformers does not work properly (for the Motion Module only) and leads to some unclear errors. So it has been partially disabled in this release (for the Motion Modules).
 The code was tested on Linux and will not work on Windows currently (at least the FFMPEGProcessor needs to be modified).
 
 ## Todo
