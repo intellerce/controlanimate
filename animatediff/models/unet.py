@@ -11,6 +11,8 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
+import safetensors
+
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput, logging
@@ -29,6 +31,7 @@ from .resnet import InflatedConv3d, InflatedGroupNorm
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 @dataclass
 class UNet3DConditionOutput(BaseOutput):
@@ -82,6 +85,30 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         addition_embed_type: Optional[str] = None,
         addition_time_embed_dim: Optional[int] = None,
 
+
+
+
+        dropout: float = 0.0,
+        encoder_hid_dim: Optional[int] = None,
+        encoder_hid_dim_type: Optional[str] = None,
+
+        conv_in_kernel: int = 3,
+        conv_out_kernel: int = 3,
+
+        attention_type: str = "default",
+        class_embeddings_concat: bool = False,
+        mid_block_only_cross_attention: Optional[bool] = None,
+        cross_attention_norm: Optional[str] = None,
+        addition_embed_type_num_heads=64,
+
+        transformer_layers_per_block: Union[int, Tuple[int], Tuple[Tuple]] = 1,
+
+        time_embedding_type: str = "positional",
+        time_embedding_dim: Optional[int] = None,
+        time_embedding_act_fn: Optional[str] = None,
+        timestep_post_act: Optional[str] = None,
+        time_cond_proj_dim: Optional[int] = None,
+
         # Additional
         use_motion_module              = False,
         motion_module_resolutions      = ( 1,2,4,8 ),
@@ -91,11 +118,14 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         motion_module_kwargs           = {},
         unet_use_cross_frame_attention = None,
         unet_use_temporal_attention    = None,
+
+
     ):
         super().__init__()
         
         self.sample_size = sample_size
         time_embed_dim = block_out_channels[0] * 4
+
 
         # input
         self.conv_in = InflatedConv3d(in_channels, block_out_channels[0], kernel_size=3, padding=(1, 1))
@@ -104,7 +134,15 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         self.time_proj = Timesteps(block_out_channels[0], flip_sin_to_cos, freq_shift)
         timestep_input_dim = block_out_channels[0]
 
-        self.time_embedding = TimestepEmbedding(timestep_input_dim, time_embed_dim)
+        # self.time_embedding = TimestepEmbedding(timestep_input_dim, time_embed_dim)
+
+        self.time_embedding = TimestepEmbedding(
+            timestep_input_dim,
+            time_embed_dim,
+            act_fn=act_fn,
+            post_act_fn=timestep_post_act,
+            cond_proj_dim=time_cond_proj_dim,
+        )
 
         # class embedding
         if class_embed_type is None and num_class_embeds is not None:
@@ -125,6 +163,25 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
 
         if isinstance(attention_head_dim, int):
             attention_head_dim = (attention_head_dim,) * len(down_block_types)
+
+
+        if class_embeddings_concat:
+            # The time embeddings are concatenated with the class embeddings. The dimension of the
+            # time embeddings passed to the down, middle, and up blocks is twice the dimension of the
+            # regular time embeddings
+            blocks_time_embed_dim = time_embed_dim * 2
+        else:
+            blocks_time_embed_dim = time_embed_dim
+
+
+        # self.time_embedding = TimestepEmbedding(
+        #     timestep_input_dim,
+        #     time_embed_dim,
+        #     act_fn=act_fn,
+        #     post_act_fn=timestep_post_act,
+        #     cond_proj_dim=time_cond_proj_dim,
+        # )
+
 
         # down
         output_channel = block_out_channels[0]
@@ -331,6 +388,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         return_dict: bool = True,
         down_block_additional_residuals: Optional[Tuple[torch.Tensor]] = None,
         mid_block_additional_residual: Optional[torch.Tensor] = None,   
+
+        timestep_cond: Optional[torch.Tensor] = None,
+        cross_attention_kwargs: Optional[Dict[str, Any]] = None,
+
+
     ) -> Union[UNet3DConditionOutput, Tuple]:
         r"""
         Args:
@@ -391,6 +453,8 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         # there might be better ways to encapsulate this.
         t_emb = t_emb.to(dtype=self.dtype)
         emb = self.time_embedding(t_emb)
+
+        emb = self.time_embedding(t_emb, timestep_cond)
 
         if self.class_embedding is not None:
             if class_labels is None:
@@ -480,7 +544,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         return UNet3DConditionOutput(sample=sample)
 
     @classmethod
-    def from_pretrained_2d(cls, pretrained_model_path, subfolder=None, unet_additional_kwargs=None):
+    def from_pretrained_2d(cls, pretrained_model_path, use_safetensors = False, subfolder=None, unet_additional_kwargs=None):
         if subfolder is not None:
             pretrained_model_path = os.path.join(pretrained_model_path, subfolder)
         print(f"loaded temporal unet's pretrained weights from {pretrained_model_path} ...")
@@ -504,12 +568,19 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
             "CrossAttnUpBlock3D"
         ]
 
-        from diffusers.utils import WEIGHTS_NAME
+        from diffusers.utils import WEIGHTS_NAME, SAFETENSORS_WEIGHTS_NAME
+        
         model = cls.from_config(config, **unet_additional_kwargs)
+        if use_safetensors:
+            WEIGHTS_NAME = SAFETENSORS_WEIGHTS_NAME
         model_file = os.path.join(pretrained_model_path, WEIGHTS_NAME)
         if not os.path.isfile(model_file):
             raise RuntimeError(f"{model_file} does not exist")
-        state_dict = torch.load(model_file, map_location="cpu")
+        
+        if use_safetensors:
+            state_dict = safetensors.torch.load_file(model_file, device="cpu")
+        else:
+            state_dict = torch.load(model_file, map_location="cpu")
 
         m, u = model.load_state_dict(state_dict, strict=False)
         print(f"### missing keys: {len(m)}; \n### unexpected keys: {len(u)};")

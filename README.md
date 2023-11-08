@@ -9,6 +9,11 @@ Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition t
 ![ControlAnimate](./readme/fig1_wlogo.png?raw=true "ControlAnimate")
 
 
+## News
+
+- :fire: Nov. 7, 2023 - Now supporting Latent Consistency Model (LCM) - Achieving 10X performance gain!
+
+
 ## Compatibility and Requirements
 - This codebase was tested on Linux (Ubuntu 22.04) only.
 It was tested on an Intel machine with NVIDIA Gefore RTX 3090 (24 GB VRAM) and requires at least 16 GB of RAM.
@@ -42,7 +47,10 @@ Similarly you can use the negative sign (-) to reduce the weight or use weights 
 Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for more info.
 
 ## Results
+- Four ControlNets and Latent Overlapping
 [![ControlAnimate](./readme/result1.jpg?raw=true)](https://youtu.be/i2YFW2JSGQU "ControlAnimate")
+- LCM (No ControlNet)
+[![ControlAnimate](./readme/result_lcm.jpg?raw=true)](https://youtu.be/4xAlnOzsj3o "ControlAnimate")
 
 ## Known Issues
 This is an initial release so please expect some potential bugs and issues.
