@@ -25,6 +25,8 @@ class ControlAnimatePipeline():
         self.inference_config = OmegaConf.load(config.inference_config_path)
         model_config = config
         motion_module = config.motion_module
+
+        self.use_lcm = bool(config.use_lcm)
     
         ### >>> create validation pipeline >>> ###
         tokenizer    = CLIPTokenizer.from_pretrained(model_config.pretrained_model_path, subfolder="tokenizer")
@@ -35,7 +37,10 @@ class ControlAnimatePipeline():
         else:
             vae          = AutoencoderKL.from_single_file(model_config.vae_path)     
 
-        unet         = UNet3DConditionModel.from_pretrained_2d(model_config.pretrained_model_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs))
+        if not self.use_lcm:
+            unet         = UNet3DConditionModel.from_pretrained_2d(model_config.pretrained_model_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs))
+        else:
+            unet         = UNet3DConditionModel.from_pretrained_2d(model_config.pretrained_lcm_model_path, subfolder="unet", use_safetensors=True, unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs))
 
         
         self.multicontrolnetresiduals_pipeline = MultiControlNetResidualsPipeline(list(model_config.controlnets), list(config.cond_scale)) if model_config.controlnets is not None else None
@@ -52,21 +57,39 @@ class ControlAnimatePipeline():
             "PNDMScheduler": PNDMScheduler,
         }
 
-        pipeline = ControlAnimationPipeline(
-            vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, unet=unet,
-            scheduler=schedulers[config.scheduler](**OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)), # **OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)
-        ).to("cuda")
 
-        self.pipeline = load_weights(
-            pipeline,
-            # motion module
-            motion_module_path         = motion_module,
-            motion_module_lora_configs = model_config.get("motion_module_lora_configs", []),
-            # image layers
-            dreambooth_model_path      = model_config.get("dreambooth_path", ""),
-            lora_model_path            = model_config.get("lora_model_path", ""),
-            lora_alpha                 = model_config.get("lora_alpha", 0.8),
-        ).to("cuda")
+        if not self.use_lcm:
+            pipeline = ControlAnimationPipeline(
+                vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, unet=unet,
+                scheduler=schedulers[config.scheduler](**OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)), # **OmegaConf.to_container(self.inference_config.noise_scheduler_kwargs)
+            ).to("cuda")
+        else:
+            pipeline = ControlAnimationPipeline(
+                vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, unet=unet,
+                scheduler=None,
+            ).to("cuda")
+
+
+
+
+        if not self.use_lcm:
+            self.pipeline = load_weights(
+                pipeline,
+                # motion module
+                motion_module_path         = motion_module,
+                motion_module_lora_configs = model_config.get("motion_module_lora_configs", []),
+                # image layers
+                dreambooth_model_path      = model_config.get("dreambooth_path", ""),
+                lora_model_path            = model_config.get("lora_model_path", ""),
+                lora_alpha                 = model_config.get("lora_alpha", 0.8),
+            ).to("cuda")
+        else:
+            self.pipeline = load_weights(
+                pipeline,
+                # motion module
+                motion_module_path         = motion_module,
+                motion_module_lora_configs = model_config.get("motion_module_lora_configs", []),
+            ).to("cuda")
 
 
         self.pipeline.load_textual_inversion("models/TI/easynegative.safetensors", token="easynegative")
@@ -85,7 +108,7 @@ class ControlAnimatePipeline():
         prompt_embeds = compel_proc(self.prompt).to('cuda')
         negative_prompt_embeds = compel_proc(self.n_prompt).to('cuda')
 
-
+        
         print(f"# current seed: {torch.initial_seed()}")
 
         sample = self.pipeline(
@@ -106,8 +129,8 @@ class ControlAnimatePipeline():
             epoch = config.epoch,
             output_dir = config.output_video_dir,
             save_outputs = bool(config.save_frames),
-            last_output_frame = last_output_frame
-
+            last_output_frame = last_output_frame,
+            use_lcm = self.use_lcm
         ).videos
 
         frames = get_frames_pil_images(sample)

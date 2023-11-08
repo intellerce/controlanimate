@@ -11,7 +11,9 @@ draft
 tmp
 */weights
 weights
-models
+./models
 cache
+setup.sh
+
 
 

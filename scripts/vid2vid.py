@@ -172,7 +172,7 @@ def vid2vid(
         config.frame_count = len(pil_images_batch)
 
         if len(overlap_frames) > 0: config.strength = config.overlap_strength
-
+        
         config.epoch = epoch
         epoch+=1
 
@@ -243,5 +243,5 @@ def vid2vid(
 if __name__ == '__main__':
     # Running some basic tests...
     vid2vid(
-         config_path='configs/prompts/SampleConfig.yaml')
+         config_path='configs/prompts/SampleConfigLCM.yaml')
     
