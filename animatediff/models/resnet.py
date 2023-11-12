@@ -6,8 +6,10 @@ import torch.nn.functional as F
 
 from einops import rearrange
 
+from diffusers.models.lora import LoRACompatibleConv, LoRACompatibleLinear
 
-class InflatedConv3d(nn.Conv2d):
+
+class InflatedConv3d(LoRACompatibleConv):
     def forward(self, x):
         video_length = x.shape[2]
 
@@ -135,6 +137,10 @@ class ResnetBlock3D(nn.Module):
         self.time_embedding_norm = time_embedding_norm
         self.output_scale_factor = output_scale_factor
 
+        linear_cls = LoRACompatibleLinear
+        conv_cls = LoRACompatibleConv
+
+
         if groups_out is None:
             groups_out = groups
 
@@ -154,7 +160,7 @@ class ResnetBlock3D(nn.Module):
             else:
                 raise ValueError(f"unknown time_embedding_norm : {self.time_embedding_norm} ")
 
-            self.time_emb_proj = torch.nn.Linear(temb_channels, time_emb_proj_out_channels)
+            self.time_emb_proj = linear_cls(temb_channels, time_emb_proj_out_channels)
         else:
             self.time_emb_proj = None
 

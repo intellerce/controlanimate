@@ -101,6 +101,8 @@ def convert_lora(pipeline, state_dict, LORA_PREFIX_UNET="lora_unet", LORA_PREFIX
         if len(state_dict[pair_keys[0]].shape) == 4:
             weight_up = state_dict[pair_keys[0]].squeeze(3).squeeze(2).to(torch.float32)
             weight_down = state_dict[pair_keys[1]].squeeze(3).squeeze(2).to(torch.float32)
+            # print(">>>>>>>>>>>>>>>>>>> weight_up:", weight_up)
+            # print(">>>>>>>>>>>>>>>>>>> weight_down:", weight_down)
             curr_layer.weight.data += alpha * torch.mm(weight_up, weight_down).unsqueeze(2).unsqueeze(3).to(curr_layer.weight.data.device)
         else:
             weight_up = state_dict[pair_keys[0]].to(torch.float32)

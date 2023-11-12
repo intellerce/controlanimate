@@ -25,6 +25,7 @@ from diffusers.schedulers import (
     PNDMScheduler,
     UniPCMultistepScheduler
 )
+
 from diffusers.utils import BaseOutput
 
 from diffusers.utils import (
@@ -69,7 +70,7 @@ class AnimationPipelineOutput(BaseOutput):
     videos: Union[torch.Tensor, np.ndarray]
 
 
-class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,):
+class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, LoraLoaderMixin):
     _optional_components = []
 
     def __init__(
@@ -546,21 +547,17 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
     def prepare_latents(self, input_frames, batch_size, num_channels_latents, video_length, height, width, dtype, device, generator,
                         latent_timestep, overlaps, strength, 
                         latents=None,
-                        last_output_frame = None,
+                        last_output_frames = None,
                         use_lcm = False,
                         ):
         shape = (batch_size, num_channels_latents, video_length, height // self.vae_scale_factor, width // self.vae_scale_factor)
 
         latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype) # torch.randn(shape, generator=generator, dtype=dtype)  #.to(device) , device=rand_device
-        self.latents = latents
 
-        last_output_frame_latents = None
+        last_output_frames_latents = []
         
         if overlaps > 0 or strength < 1 or use_lcm:
             frames_latents = []
-
-            # if self.frames_latents is not None:
-            #     self.prev_frames_latents = self.frames_latents.clone()
 
             if input_frames is not None:
                 for i , frame in enumerate(input_frames):
@@ -575,13 +572,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
                     frame_latents = self.vae.config.scaling_factor * frame_latents
                     frames_latents.append(frame_latents)
 
-            # if use_lcm or strength < 1:
-            #     # for i in range(len(frames_latents)):
-            #     frames_latents_tensor = torch.stack(frames_latents,dim=2)
-            #     latents = self.scheduler.add_noise(frames_latents_tensor, latents.to(device), latent_timestep)
-
-            if last_output_frame is not None:
-                    image = last_output_frame
+            if last_output_frames is not None:
+                for image in last_output_frames:
                     image = self.image_processor.preprocess(image)
                     if not isinstance(image, (torch.Tensor, PIL.Image.Image, list)):
                         raise ValueError(
@@ -590,33 +582,20 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
                     image = image.to(device=device, dtype=dtype)
                     frame_latents = self.vae.encode(image).latent_dist.sample(generator)
                     frame_latents = self.vae.config.scaling_factor * frame_latents
-                    last_output_frame_latents = frame_latents
+                    last_output_frames_latents.append(frame_latents)
             
-            self.frames_latents = frames_latents
-
             latents = latents.to(device)
-
-            # if last_output_frame is not None:
-            #     for i in range(video_length):
-            #         # shape = frames_latents[i].shape
-            #         factor = (len(frames_latents)-(i))/len(frames_latents)/2
-            #         factor = 0
-            #         # factor = 0
-            #         if overlaps > 0: #i >= overlaps and  np.sqrt(factor*0.5)*last_output_frame_latents + np.sqrt(1-factor*0.5)*
-            #             latents[:, :, i, :, :] = self.scheduler.add_noise( np.sqrt(factor*0.5)*last_output_frame_latents + np.sqrt(1-factor*0.5)*frames_latents[i], latents[:, :, i, :, :].to(device), latent_timestep)
             if use_lcm:
                 frames_latents_tensor = torch.stack(frames_latents,dim=2)
                 latents = self.scheduler.add_noise(frames_latents_tensor, latents.to(device), latent_timestep)
 
-            elif last_output_frame is not None:
+            elif last_output_frames is not None:
+                # for i in range(len(last_output_frames_latents)):
                 for i in range(video_length):
-                #     shape = frames_latents[i].shape
-                    
-                #     if overlaps > 0: 
-                        latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frame_latents, latents[:, :, i, :, :].to(device), latent_timestep)
-                # latents = self.scheduler.add_noise(last_output_frame_latents.repeat(1,1,video_length,1,1), latents.to(device), latent_timestep)
-
-
+                    if i < len(last_output_frames):
+                        latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[i], latents[:, :, i, :, :].to(device), latent_timestep)
+                    else:
+                        latents[:, :, i, :, :] = latents[:, :, i, :, :] * self.scheduler.init_noise_sigma 
 
         
         latents = latents.to(device)
@@ -668,7 +647,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
         epoch = 0,
         output_dir = 'tmp/output',
         save_outputs = False,
-        last_output_frame = None,
+        last_output_frames = None,
         use_lcm = True,
         lcm_origin_steps: int = 50,
         **kwargs,
@@ -710,7 +689,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
 
 
         # Prepare timesteps
-        if use_lcm:
+        if use_lcm or isinstance(self.scheduler, LCMScheduler):
             self.scheduler.set_timesteps(strength, num_inference_steps, lcm_origin_steps)
             # timesteps = self.scheduler.timesteps
         else:
@@ -740,7 +719,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
             overlaps,
             strength,
             latents,
-            last_output_frame = last_output_frame,
+            last_output_frames = last_output_frames,
             use_lcm=use_lcm
         )
         latents_dtype = latents.dtype
@@ -774,10 +753,9 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
                 ts = torch.full((bs,), t, device=device, dtype=torch.long)
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-
-                # lcm_
-
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+
+                lcm_model_input = self.scheduler.scale_model_input(latents, t)
 
                 # print("DTYPE:", latent_model_input.dtype)
                 # print("LATELT SHAPE:", latent_model_input.shape)
@@ -788,33 +766,24 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin,)
                     controlnet_overlaps = 0
 
                     down_block_additional_residuals, mid_block_additional_residual = multicontrolnetresiduals_pipeline(
-                                    control_model_input = latent_model_input,
+                                    control_model_input = latent_model_input if not use_lcm else lcm_model_input,
                                     t = t,
-                                    controlnet_prompt_embeds = prompt_embeds, 
+                                    controlnet_prompt_embeds = prompt_embeds if not use_lcm else lcm_prompt_embeds, 
+                                    frame_count=len(input_frames),
+                                    # guess_mode=use_lcm
                                     # cond_scale = [0.5] * len(multicontrolnetresiduals_pipeline.controlnets),
                                     )
                     
-                    # tuples are un-assinagnable so we first convert to lists and then convert back
-                    down_block_additional_residuals = list(down_block_additional_residuals) 
-                    
-                    # Re-arranging the outputs of controlnet(s) to account for the frames
-                    for i, tensor in enumerate(down_block_additional_residuals):
-                        down_block_additional_residuals[i] = rearrange(tensor, '(b f) c h w -> b c f h w', f = len(input_frames))
-
-                
-                    mid_block_additional_residual = rearrange(mid_block_additional_residual, '(b f) c h w -> b c f h w', f = len(input_frames))
-
-                    down_block_additional_residuals = tuple(down_block_additional_residuals)
-
-
                 if use_lcm:
                     # model prediction (v-prediction, eps, x)
                     model_pred = self.unet(
-                        latents,
+                        lcm_model_input,
                         ts,
                         timestep_cond=w_embedding,
                         encoder_hidden_states=lcm_prompt_embeds,
                         cross_attention_kwargs=cross_attention_kwargs,
+                        down_block_additional_residuals = down_block_additional_residuals,
+                        mid_block_additional_residual = mid_block_additional_residual,
                         return_dict=False,
                     )[0]
                     latents, denoised = self.scheduler.step(model_pred, i, t, latents, return_dict=False)
@@ -1150,6 +1119,346 @@ class LCMScheduler(SchedulerMixin, ConfigMixin):
         lcm_origin_timesteps = (
             np.asarray(list(range(1, int(lcm_origin_steps * stength) + 1))) * c - 1
         )  # LCM Training  Steps Schedule
+        skipping_step = len(lcm_origin_timesteps) // num_inference_steps
+        timesteps = lcm_origin_timesteps[::-skipping_step][:num_inference_steps]  # LCM Inference Steps Schedule
+
+        self.timesteps = torch.from_numpy(timesteps.copy()).to(device)
+
+    def get_scalings_for_boundary_condition_discrete(self, t):
+        self.sigma_data = 0.5  # Default: 0.5
+
+        # By dividing 0.1: This is almost a delta function at t=0.
+        c_skip = self.sigma_data**2 / ((t / 0.1) ** 2 + self.sigma_data**2)
+        c_out = (t / 0.1) / ((t / 0.1) ** 2 + self.sigma_data**2) ** 0.5
+        return c_skip, c_out
+
+    def step(
+        self,
+        model_output: torch.FloatTensor,
+        timeindex: int,
+        timestep: int,
+        sample: torch.FloatTensor,
+        eta: float = 0.0,
+        use_clipped_model_output: bool = False,
+        generator=None,
+        variance_noise: Optional[torch.FloatTensor] = None,
+        return_dict: bool = True,
+    ) -> Union[LCMSchedulerOutput, Tuple]:
+        """
+        Predict the sample from the previous timestep by reversing the SDE. This function propagates the diffusion
+        process from the learned model outputs (most often the predicted noise).
+        Args:
+            model_output (`torch.FloatTensor`):
+                The direct output from learned diffusion model.
+            timestep (`float`):
+                The current discrete timestep in the diffusion chain.
+            sample (`torch.FloatTensor`):
+                A current instance of a sample created by the diffusion process.
+            eta (`float`):
+                The weight of noise for added noise in diffusion step.
+            use_clipped_model_output (`bool`, defaults to `False`):
+                If `True`, computes "corrected" `model_output` from the clipped predicted original sample. Necessary
+                because predicted original sample is clipped to [-1, 1] when `self.config.clip_sample` is `True`. If no
+                clipping has happened, "corrected" `model_output` would coincide with the one provided as input and
+                `use_clipped_model_output` has no effect.
+            generator (`torch.Generator`, *optional*):
+                A random number generator.
+            variance_noise (`torch.FloatTensor`):
+                Alternative to generating noise with `generator` by directly providing the noise for the variance
+                itself. Useful for methods such as [`CycleDiffusion`].
+            return_dict (`bool`, *optional*, defaults to `True`):
+                Whether or not to return a [`~schedulers.scheduling_lcm.LCMSchedulerOutput`] or `tuple`.
+        Returns:
+            [`~schedulers.scheduling_utils.LCMSchedulerOutput`] or `tuple`:
+                If return_dict is `True`, [`~schedulers.scheduling_lcm.LCMSchedulerOutput`] is returned, otherwise a
+                tuple is returned where the first element is the sample tensor.
+        """
+        if self.num_inference_steps is None:
+            raise ValueError(
+                "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
+            )
+
+        # 1. get previous step value
+        prev_timeindex = timeindex + 1
+        if prev_timeindex < len(self.timesteps):
+            prev_timestep = self.timesteps[prev_timeindex]
+        else:
+            prev_timestep = timestep
+
+        # 2. compute alphas, betas
+        alpha_prod_t = self.alphas_cumprod[timestep]
+        alpha_prod_t_prev = self.alphas_cumprod[prev_timestep] if prev_timestep >= 0 else self.final_alpha_cumprod
+
+        beta_prod_t = 1 - alpha_prod_t
+        beta_prod_t_prev = 1 - alpha_prod_t_prev
+
+        # 3. Get scalings for boundary conditions
+        c_skip, c_out = self.get_scalings_for_boundary_condition_discrete(timestep)
+
+        # 4. Different Parameterization:
+        parameterization = self.config.prediction_type
+
+        if parameterization == "epsilon":  # noise-prediction
+            pred_x0 = (sample - beta_prod_t.sqrt() * model_output) / alpha_prod_t.sqrt()
+
+        elif parameterization == "sample":  # x-prediction
+            pred_x0 = model_output
+
+        elif parameterization == "v_prediction":  # v-prediction
+            pred_x0 = alpha_prod_t.sqrt() * sample - beta_prod_t.sqrt() * model_output
+
+        # 4. Denoise model output using boundary conditions
+        denoised = c_out * pred_x0 + c_skip * sample
+
+        # 5. Sample z ~ N(0, I), For MultiStep Inference
+        # Noise is not used for one-step sampling.
+        if len(self.timesteps) > 1:
+            noise = torch.randn(model_output.shape).to(model_output.device)
+            prev_sample = alpha_prod_t_prev.sqrt() * denoised + beta_prod_t_prev.sqrt() * noise
+        else:
+            prev_sample = denoised
+
+        if not return_dict:
+            return (prev_sample, denoised)
+
+        return LCMSchedulerOutput(prev_sample=prev_sample, denoised=denoised)
+
+    # Copied from diffusers.schedulers.scheduling_ddpm.DDPMScheduler.add_noise
+    def add_noise(
+        self,
+        original_samples: torch.FloatTensor,
+        noise: torch.FloatTensor,
+        timesteps: torch.IntTensor,
+    ) -> torch.FloatTensor:
+        # Make sure alphas_cumprod and timestep have same device and dtype as original_samples
+        alphas_cumprod = self.alphas_cumprod.to(device=original_samples.device, dtype=original_samples.dtype)
+        timesteps = timesteps.to(original_samples.device)
+
+        sqrt_alpha_prod = alphas_cumprod[timesteps] ** 0.5
+        sqrt_alpha_prod = sqrt_alpha_prod.flatten()
+        while len(sqrt_alpha_prod.shape) < len(original_samples.shape):
+            sqrt_alpha_prod = sqrt_alpha_prod.unsqueeze(-1)
+
+        sqrt_one_minus_alpha_prod = (1 - alphas_cumprod[timesteps]) ** 0.5
+        sqrt_one_minus_alpha_prod = sqrt_one_minus_alpha_prod.flatten()
+        while len(sqrt_one_minus_alpha_prod.shape) < len(original_samples.shape):
+            sqrt_one_minus_alpha_prod = sqrt_one_minus_alpha_prod.unsqueeze(-1)
+
+        noisy_samples = sqrt_alpha_prod * original_samples + sqrt_one_minus_alpha_prod * noise
+        return noisy_samples
+
+    # Copied from diffusers.schedulers.scheduling_ddpm.DDPMScheduler.get_velocity
+    def get_velocity(
+        self, sample: torch.FloatTensor, noise: torch.FloatTensor, timesteps: torch.IntTensor
+    ) -> torch.FloatTensor:
+        # Make sure alphas_cumprod and timestep have same device and dtype as sample
+        alphas_cumprod = self.alphas_cumprod.to(device=sample.device, dtype=sample.dtype)
+        timesteps = timesteps.to(sample.device)
+
+        sqrt_alpha_prod = alphas_cumprod[timesteps] ** 0.5
+        sqrt_alpha_prod = sqrt_alpha_prod.flatten()
+        while len(sqrt_alpha_prod.shape) < len(sample.shape):
+            sqrt_alpha_prod = sqrt_alpha_prod.unsqueeze(-1)
+
+        sqrt_one_minus_alpha_prod = (1 - alphas_cumprod[timesteps]) ** 0.5
+        sqrt_one_minus_alpha_prod = sqrt_one_minus_alpha_prod.flatten()
+        while len(sqrt_one_minus_alpha_prod.shape) < len(sample.shape):
+            sqrt_one_minus_alpha_prod = sqrt_one_minus_alpha_prod.unsqueeze(-1)
+
+        velocity = sqrt_alpha_prod * noise - sqrt_one_minus_alpha_prod * sample
+        return velocity
+
+    def __len__(self):
+        return self.config.num_train_timesteps
+    
+
+
+# class LCMScheduler_X(SchedulerMixin, ConfigMixin):
+    """
+    `LCMScheduler` extends the denoising procedure introduced in denoising diffusion probabilistic models (DDPMs) with
+    non-Markovian guidance.
+    This model inherits from [`SchedulerMixin`] and [`ConfigMixin`]. Check the superclass documentation for the generic
+    methods the library implements for all schedulers such as loading and saving.
+    Args:
+        num_train_timesteps (`int`, defaults to 1000):
+            The number of diffusion steps to train the model.
+        beta_start (`float`, defaults to 0.0001):
+            The starting `beta` value of inference.
+        beta_end (`float`, defaults to 0.02):
+            The final `beta` value.
+        beta_schedule (`str`, defaults to `"linear"`):
+            The beta schedule, a mapping from a beta range to a sequence of betas for stepping the model. Choose from
+            `linear`, `scaled_linear`, or `squaredcos_cap_v2`.
+        trained_betas (`np.ndarray`, *optional*):
+            Pass an array of betas directly to the constructor to bypass `beta_start` and `beta_end`.
+        clip_sample (`bool`, defaults to `True`):
+            Clip the predicted sample for numerical stability.
+        clip_sample_range (`float`, defaults to 1.0):
+            The maximum magnitude for sample clipping. Valid only when `clip_sample=True`.
+        set_alpha_to_one (`bool`, defaults to `True`):
+            Each diffusion step uses the alphas product value at that step and at the previous one. For the final step
+            there is no previous alpha. When this option is `True` the previous alpha product is fixed to `1`,
+            otherwise it uses the alpha value at step 0.
+        steps_offset (`int`, defaults to 0):
+            An offset added to the inference steps. You can use a combination of `offset=1` and
+            `set_alpha_to_one=False` to make the last step use step 0 for the previous alpha product like in Stable
+            Diffusion.
+        prediction_type (`str`, defaults to `epsilon`, *optional*):
+            Prediction type of the scheduler function; can be `epsilon` (predicts the noise of the diffusion process),
+            `sample` (directly predicts the noisy sample`) or `v_prediction` (see section 2.4 of [Imagen
+            Video](https://imagen.research.google/video/paper.pdf) paper).
+        thresholding (`bool`, defaults to `False`):
+            Whether to use the "dynamic thresholding" method. This is unsuitable for latent-space diffusion models such
+            as Stable Diffusion.
+        dynamic_thresholding_ratio (`float`, defaults to 0.995):
+            The ratio for the dynamic thresholding method. Valid only when `thresholding=True`.
+        sample_max_value (`float`, defaults to 1.0):
+            The threshold value for dynamic thresholding. Valid only when `thresholding=True`.
+        timestep_spacing (`str`, defaults to `"leading"`):
+            The way the timesteps should be scaled. Refer to Table 2 of the [Common Diffusion Noise Schedules and
+            Sample Steps are Flawed](https://huggingface.co/papers/2305.08891) for more information.
+        rescale_betas_zero_snr (`bool`, defaults to `False`):
+            Whether to rescale the betas to have zero terminal SNR. This enables the model to generate very bright and
+            dark samples instead of limiting it to samples with medium brightness. Loosely related to
+            [`--offset_noise`](https://github.com/huggingface/diffusers/blob/74fd735eb073eb1d774b1ab4154a0876eb82f055/examples/dreambooth/train_dreambooth.py#L506).
+    """
+
+    # _compatibles = [e.name for e in KarrasDiffusionSchedulers]
+    order = 1
+
+    @register_to_config
+    def __init__(
+        self,
+        num_train_timesteps: int = 1000,
+        beta_start: float = 0.0001,
+        beta_end: float = 0.02,
+        beta_schedule: str = "linear",
+        trained_betas: Optional[Union[np.ndarray, List[float]]] = None,
+        clip_sample: bool = True,
+        set_alpha_to_one: bool = True,
+        steps_offset: int = 0,
+        prediction_type: str = "epsilon",
+        thresholding: bool = False,
+        dynamic_thresholding_ratio: float = 0.995,
+        clip_sample_range: float = 1.0,
+        sample_max_value: float = 1.0,
+        timestep_spacing: str = "leading",
+        rescale_betas_zero_snr: bool = False,
+    ):
+        if trained_betas is not None:
+            self.betas = torch.tensor(trained_betas, dtype=torch.float32)
+        elif beta_schedule == "linear":
+            self.betas = torch.linspace(beta_start, beta_end, num_train_timesteps, dtype=torch.float32)
+        elif beta_schedule == "scaled_linear":
+            # this schedule is very specific to the latent diffusion model.
+            self.betas = (
+                torch.linspace(beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=torch.float32) ** 2
+            )
+        elif beta_schedule == "squaredcos_cap_v2":
+            # Glide cosine schedule
+            self.betas = betas_for_alpha_bar(num_train_timesteps)
+        else:
+            raise NotImplementedError(f"{beta_schedule} does is not implemented for {self.__class__}")
+
+        # Rescale for zero SNR
+        if rescale_betas_zero_snr:
+            self.betas = rescale_zero_terminal_snr(self.betas)
+
+        self.alphas = 1.0 - self.betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+
+        # At every step in ddim, we are looking into the previous alphas_cumprod
+        # For the final step, there is no previous alphas_cumprod because we are already at 0
+        # `set_alpha_to_one` decides whether we set this parameter simply to one or
+        # whether we use the final alpha of the "non-previous" one.
+        self.final_alpha_cumprod = torch.tensor(1.0) if set_alpha_to_one else self.alphas_cumprod[0]
+
+        # standard deviation of the initial noise distribution
+        self.init_noise_sigma = 1.0
+
+        # setable values
+        self.num_inference_steps = None
+        self.timesteps = torch.from_numpy(np.arange(0, num_train_timesteps)[::-1].copy().astype(np.int64))
+
+    def scale_model_input(self, sample: torch.FloatTensor, timestep: Optional[int] = None) -> torch.FloatTensor:
+        """
+        Ensures interchangeability with schedulers that need to scale the denoising model input depending on the
+        current timestep.
+        Args:
+            sample (`torch.FloatTensor`):
+                The input sample.
+            timestep (`int`, *optional*):
+                The current timestep in the diffusion chain.
+        Returns:
+            `torch.FloatTensor`:
+                A scaled input sample.
+        """
+        return sample
+
+    def _get_variance(self, timestep, prev_timestep):
+        alpha_prod_t = self.alphas_cumprod[timestep]
+        alpha_prod_t_prev = self.alphas_cumprod[prev_timestep] if prev_timestep >= 0 else self.final_alpha_cumprod
+        beta_prod_t = 1 - alpha_prod_t
+        beta_prod_t_prev = 1 - alpha_prod_t_prev
+
+        variance = (beta_prod_t_prev / beta_prod_t) * (1 - alpha_prod_t / alpha_prod_t_prev)
+
+        return variance
+
+    # Copied from diffusers.schedulers.scheduling_ddpm.DDPMScheduler._threshold_sample
+    def _threshold_sample(self, sample: torch.FloatTensor) -> torch.FloatTensor:
+        """
+        "Dynamic thresholding: At each sampling step we set s to a certain percentile absolute pixel value in xt0 (the
+        prediction of x_0 at timestep t), and if s > 1, then we threshold xt0 to the range [-s, s] and then divide by
+        s. Dynamic thresholding pushes saturated pixels (those near -1 and 1) inwards, thereby actively preventing
+        pixels from saturation at each step. We find that dynamic thresholding results in significantly better
+        photorealism as well as better image-text alignment, especially when using very large guidance weights."
+        https://arxiv.org/abs/2205.11487
+        """
+        dtype = sample.dtype
+        batch_size, channels, height, width = sample.shape
+
+        if dtype not in (torch.float32, torch.float64):
+            sample = sample.float()  # upcast for quantile calculation, and clamp not implemented for cpu half
+
+        # Flatten sample for doing quantile calculation along each image
+        sample = sample.reshape(batch_size, channels * height * width)
+
+        abs_sample = sample.abs()  # "a certain percentile absolute pixel value"
+
+        s = torch.quantile(abs_sample, self.config.dynamic_thresholding_ratio, dim=1)
+        s = torch.clamp(
+            s, min=1, max=self.config.sample_max_value
+        )  # When clamped to min=1, equivalent to standard clipping to [-1, 1]
+
+        s = s.unsqueeze(1)  # (batch_size, 1) because clamp will broadcast along dim=0
+        sample = torch.clamp(sample, -s, s) / s  # "we threshold xt0 to the range [-s, s] and then divide by s"
+
+        sample = sample.reshape(batch_size, channels, height, width)
+        sample = sample.to(dtype)
+
+        return sample
+
+    def set_timesteps(self, stength, num_inference_steps: int, lcm_origin_steps: int, device: Union[str, torch.device] = None):
+        """
+        Sets the discrete timesteps used for the diffusion chain (to be run before inference).
+        Args:
+            num_inference_steps (`int`):
+                The number of diffusion steps used when generating samples with a pre-trained model.
+        """
+
+        if num_inference_steps > self.config.num_train_timesteps:
+            raise ValueError(
+                f"`num_inference_steps`: {num_inference_steps} cannot be larger than `self.config.train_timesteps`:"
+                f" {self.config.num_train_timesteps} as the unet model trained with this scheduler can only handle"
+                f" maximal {self.config.num_train_timesteps} timesteps."
+            )
+
+        self.num_inference_steps = num_inference_steps
+
+        # LCM Timesteps Setting:  # Linear Spacing
+        c = self.config.num_train_timesteps // lcm_origin_steps
+        lcm_origin_timesteps = np.asarray(list(range(1, int(lcm_origin_steps*stength) + 1))) * c - 1  # LCM Training  Steps Schedule
         skipping_step = len(lcm_origin_timesteps) // num_inference_steps
         timesteps = lcm_origin_timesteps[::-skipping_step][:num_inference_steps]  # LCM Inference Steps Schedule
 

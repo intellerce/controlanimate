@@ -11,7 +11,8 @@ from safetensors import safe_open
 from tqdm import tqdm
 from einops import rearrange
 # from animatediff.utils.convert_from_ckpt import convert_ldm_unet_checkpoint, convert_ldm_clip_checkpoint, convert_ldm_vae_checkpoint
-from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_unet_checkpoint, convert_ldm_clip_checkpoint, convert_ldm_vae_checkpoint
+from animatediff.utils.convert_from_ckpt import convert_ldm_unet_checkpoint
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_clip_checkpoint, convert_ldm_vae_checkpoint
 from animatediff.utils.convert_lora_safetensor_to_diffusers import convert_lora, convert_motion_lora_ckpt_to_diffusers
 # from diffusers.pipelines.stable_diffusion.convert_lora_safetensor_to_diffusers import convert_lora, convert_motion_lora_ckpt_to_diffusers
 import PIL.Image
@@ -141,17 +142,28 @@ def load_weights(
         
     if lora_model_path != "":
         print(f"load lora model from {lora_model_path}")
-        assert lora_model_path.endswith(".safetensors")
+
+        # assert lora_model_path.endswith(".safetensors")
+
+
         lora_state_dict = {}
         with safe_open(lora_model_path, framework="pt", device="cpu") as f:
             for key in f.keys():
+                # print("LORA KEY:", key)
                 lora_state_dict[key] = f.get_tensor(key)
+
+
+        animation_pipeline.load_lora_weights(lora_model_path) #, weight_name="pytorch_lora_weights.safetensors"
+
+        
+        
                 
-        animation_pipeline = convert_lora(animation_pipeline, lora_state_dict, alpha=lora_alpha)
-        del lora_state_dict
+        # animation_pipeline = convert_lora(animation_pipeline, lora_state_dict, alpha=lora_alpha)
+        # del lora_state_dict
 
 
     for motion_module_lora_config in motion_module_lora_configs:
+        
         path, alpha = motion_module_lora_config["path"], motion_module_lora_config["alpha"]
         print(f"load motion LoRA from {path}")
 
