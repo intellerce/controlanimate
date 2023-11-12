@@ -11,6 +11,7 @@ Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition t
 
 ## News
 
+- :fire: Nov. 12, 2023 - Now supporting LCM-LoRA & ControlNet for all combinations!
 - :fire: Nov. 7, 2023 - Now supporting Latent Consistency Model (LCM) - Achieving 10X performance gain!
 
 
@@ -47,10 +48,15 @@ Similarly you can use the negative sign (-) to reduce the weight or use weights 
 Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for more info.
 
 ## Results
-- Four ControlNets and Latent Overlapping
+- Four ControlNets and Latent Overlapping (configs/prompts/SampleConfig.yaml)
 [![ControlAnimate](./readme/result1.jpg?raw=true)](https://youtu.be/i2YFW2JSGQU "ControlAnimate")
-- LCM (No ControlNet)
+- LCM (No ControlNet) (configs/prompts/SampleConfigLCM.yaml)
 [![ControlAnimate](./readme/result_lcm.jpg?raw=true)](https://youtu.be/4xAlnOzsj3o "ControlAnimate")
+- LCM-LoRA + Multi-ControlNet (configs/prompts/SampleConfigLCMLoRA.yaml)
+[![ControlAnimate](./readme/lcmlora.jpg?raw=true)](https://youtu.be/bsK3NuOC5z8 "ControlAnimate")
+
+
+https://youtu.be/bsK3NuOC5z8
 
 ## Known Issues
 This is an initial release so please expect some potential bugs and issues.

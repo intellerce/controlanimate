@@ -11,7 +11,12 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 from diffusers.utils.import_utils import is_xformers_available
-from diffusers.models.attention import Attention as CrossAttention, FeedForward, AdaLayerNorm
+from diffusers.models.attention import Attention as CrossAttention, AdaLayerNorm
+
+from diffusers.models.activations import GEGLU, GELU, ApproximateGELU
+
+from diffusers.models.lora import LoRACompatibleConv, LoRACompatibleLinear
+from diffusers.utils import USE_PEFT_BACKEND
 
 from einops import rearrange, repeat
 import pdb
@@ -55,14 +60,18 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         self.attention_head_dim = attention_head_dim
         inner_dim = num_attention_heads * attention_head_dim
 
+
+        conv_cls = nn.Conv2d if USE_PEFT_BACKEND else LoRACompatibleConv
+        linear_cls = nn.Linear if USE_PEFT_BACKEND else LoRACompatibleLinear
+
         # Define input layers
         self.in_channels = in_channels
 
         self.norm = torch.nn.GroupNorm(num_groups=norm_num_groups, num_channels=in_channels, eps=1e-6, affine=True)
         if use_linear_projection:
-            self.proj_in = nn.Linear(in_channels, inner_dim)
+            self.proj_in = linear_cls(in_channels, inner_dim)
         else:
-            self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+            self.proj_in = conv_cls(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
 
         # Define transformers blocks
         self.transformer_blocks = nn.ModuleList(
@@ -88,9 +97,9 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
         # 4. Define output layers
         if use_linear_projection:
-            self.proj_out = nn.Linear(in_channels, inner_dim)
+            self.proj_out = linear_cls(in_channels, inner_dim)
         else:
-            self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
+            self.proj_out = conv_cls(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, hidden_states, encoder_hidden_states=None, timestep=None, return_dict: bool = True):
         # Input
@@ -297,4 +306,61 @@ class BasicTransformerBlock(nn.Module):
             hidden_states = self.attn_temp(norm_hidden_states) + hidden_states
             hidden_states = rearrange(hidden_states, "(b d) f c -> (b f) d c", d=d)
 
+        return hidden_states
+
+
+class FeedForward(nn.Module):
+    r"""
+    A feed-forward layer.
+
+    Parameters:
+        dim (`int`): The number of channels in the input.
+        dim_out (`int`, *optional*): The number of channels in the output. If not given, defaults to `dim`.
+        mult (`int`, *optional*, defaults to 4): The multiplier to use for the hidden dimension.
+        dropout (`float`, *optional*, defaults to 0.0): The dropout probability to use.
+        activation_fn (`str`, *optional*, defaults to `"geglu"`): Activation function to be used in feed-forward.
+        final_dropout (`bool` *optional*, defaults to False): Apply a final dropout.
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        dim_out: Optional[int] = None,
+        mult: int = 4,
+        dropout: float = 0.0,
+        activation_fn: str = "geglu",
+        final_dropout: bool = False,
+    ):
+        super().__init__()
+        inner_dim = int(dim * mult)
+        dim_out = dim_out if dim_out is not None else dim
+        linear_cls = LoRACompatibleLinear if not USE_PEFT_BACKEND else nn.Linear
+
+        if activation_fn == "gelu":
+            act_fn = GELU(dim, inner_dim)
+        if activation_fn == "gelu-approximate":
+            act_fn = GELU(dim, inner_dim, approximate="tanh")
+        elif activation_fn == "geglu":
+            act_fn = GEGLU(dim, inner_dim)
+        elif activation_fn == "geglu-approximate":
+            act_fn = ApproximateGELU(dim, inner_dim)
+
+        self.net = nn.ModuleList([])
+        # project in
+        self.net.append(act_fn)
+        # project dropout
+        self.net.append(nn.Dropout(dropout))
+        # project out
+        self.net.append(linear_cls(inner_dim, dim_out))
+        # FF as used in Vision Transformer, MLP-Mixer, etc. have a final dropout
+        if final_dropout:
+            self.net.append(nn.Dropout(dropout))
+
+    def forward(self, hidden_states: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
+        compatible_cls = (GEGLU,) if USE_PEFT_BACKEND else (GEGLU, LoRACompatibleLinear)
+        for module in self.net:
+            if isinstance(module, compatible_cls):
+                hidden_states = module(hidden_states, scale)
+            else:
+                hidden_states = module(hidden_states)
         return hidden_states

@@ -10,6 +10,7 @@ from diffusers.schedulers import (
     EulerDiscreteScheduler,
     LMSDiscreteScheduler,
     PNDMScheduler,
+    LCMScheduler
 )
 from diffusers import AutoencoderKL
 from animatediff.utils.util import load_weights
@@ -17,7 +18,7 @@ from modules.utils import get_frames_pil_images
 from transformers import CLIPTextModel, CLIPTokenizer
 from animatediff.models.unet import UNet3DConditionModel
 from modules.controlresiduals_pipeline import MultiControlNetResidualsPipeline
-from animatediff.pipelines.controlanimation_pipeline import ControlAnimationPipeline
+from animatediff.pipelines.controlanimation_pipeline import ControlAnimationPipeline #, LCMScheduler
 
 
 class ControlAnimatePipeline():
@@ -43,7 +44,7 @@ class ControlAnimatePipeline():
             unet         = UNet3DConditionModel.from_pretrained_2d(model_config.pretrained_lcm_model_path, subfolder="unet", use_safetensors=True, unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs))
 
         
-        self.multicontrolnetresiduals_pipeline = MultiControlNetResidualsPipeline(list(model_config.controlnets), list(config.cond_scale)) if model_config.controlnets is not None else None
+        self.multicontrolnetresiduals_pipeline = MultiControlNetResidualsPipeline(list(model_config.controlnets), list(config.cond_scale), use_lcm = self.use_lcm) if model_config.controlnets is not None else None
         # self.multicontrolnetresiduals_overlap_pipeline = MultiControlNetResidualsPipeline(list(model_config.overlap_controlnets), list(config.overlap_cond_scale)) if model_config.overlap_controlnets is not None else None
 
 
@@ -55,6 +56,7 @@ class ControlAnimatePipeline():
             "EulerDiscreteScheduler": EulerDiscreteScheduler,
             "LMSDiscreteScheduler": LMSDiscreteScheduler,
             "PNDMScheduler": PNDMScheduler,
+            "LCMScheduler": LCMScheduler
         }
 
 
@@ -98,11 +100,11 @@ class ControlAnimatePipeline():
         self.n_prompt = self.pipeline.maybe_convert_prompt(config.n_prompt, self.pipeline.tokenizer)
 
 
-    def animate(self, input_frames, last_output_frame, config):
+    def animate(self, input_frames, last_output_frames, config):
 
         torch.manual_seed(config.seed)
         self.generator = torch.Generator(device="cpu").manual_seed(config.seed)
-        width , height = input_frames[0].size
+        width , height = config.width, config.height #input_frames[0].size
 
         compel_proc = Compel(tokenizer=self.pipeline.tokenizer, text_encoder=self.pipeline.text_encoder)
         prompt_embeds = compel_proc(self.prompt).to('cuda')
@@ -129,7 +131,7 @@ class ControlAnimatePipeline():
             epoch = config.epoch,
             output_dir = config.output_video_dir,
             save_outputs = bool(config.save_frames),
-            last_output_frame = last_output_frame,
+            last_output_frames = last_output_frames,
             use_lcm = self.use_lcm
         ).videos
 

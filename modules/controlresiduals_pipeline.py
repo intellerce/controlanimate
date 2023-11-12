@@ -21,7 +21,7 @@ from controlnet_aux import OpenposeDetector, MLSDdetector, NormalBaeDetector, HE
 
 
 class MultiControlNetResidualsPipeline:
-    def __init__(self, hf_controlnet_names, cond_scale):
+    def __init__(self, hf_controlnet_names, cond_scale, use_lcm):
         cache_dir = 'cache'
 
         self.controlnet_names = hf_controlnet_names
@@ -37,6 +37,8 @@ class MultiControlNetResidualsPipeline:
         self.multicontrolnet = MultiControlNetModel(self.controlnets).to('cuda')
 
         self.cond_scale = cond_scale
+
+        self.use_lcm = use_lcm
 
         # self.multicontrolnet.to('cpu')
 
@@ -258,7 +260,7 @@ class MultiControlNetResidualsPipeline:
             # TODO
             do_classifier_free_guidance = True
             guess_mode = False
-            if do_classifier_free_guidance and not guess_mode:
+            if do_classifier_free_guidance and not guess_mode and not self.use_lcm:
                 ctrl_images = torch.cat([ctrl_images] * 2)
 
             prep_images.append(ctrl_images)
@@ -272,13 +274,12 @@ class MultiControlNetResidualsPipeline:
                  control_model_input,
                  t,
                  controlnet_prompt_embeds, 
+                 frame_count,
                  guess_mode = False):
-        
-
         
         control_model_input = rearrange(control_model_input, 'b c f h w -> (b f) c h w' )
 
-        controlnet_prompt_embeds = torch.cat([controlnet_prompt_embeds] * (len(self.prep_images[0])//2))
+        controlnet_prompt_embeds = torch.cat([controlnet_prompt_embeds] * frame_count)
 
         down_block_res_samples_multi, mid_block_res_sample_multi = self.multicontrolnet(
             control_model_input.half(), #[:,:,i,:,:].half(),
@@ -289,6 +290,18 @@ class MultiControlNetResidualsPipeline:
             guess_mode=guess_mode,
             return_dict=False,
             )
-   
-        return down_block_res_samples_multi, mid_block_res_sample_multi
+
+        # tuples are un-assinagnable so we first convert to lists and then convert back
+        down_block_additional_residuals = list(down_block_res_samples_multi) 
+        
+        # Re-arranging the outputs of controlnet(s) to account for the frames
+        for i, tensor in enumerate(down_block_additional_residuals):
+            down_block_additional_residuals[i] = rearrange(tensor, '(b f) c h w -> b c f h w', f = frame_count)
+
+    
+        mid_block_additional_residual = rearrange(mid_block_res_sample_multi, '(b f) c h w -> b c f h w', f = frame_count)
+
+        down_block_additional_residuals = tuple(down_block_additional_residuals)
+
+        return down_block_additional_residuals, mid_block_additional_residual
                 

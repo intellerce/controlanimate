@@ -45,6 +45,12 @@ def vid2vid(
     
     config  = OmegaConf.load(config_path)
 
+    has_input_video = (config.input_video_path != "")
+    total_frames = 0
+    if not has_input_video:
+        total_frames = int(config.total_frames)
+
+
     save_frames = bool(config.save_frames)
 
     upscaler = None
@@ -62,7 +68,12 @@ def vid2vid(
     y = time.strptime(end_time,'%H:%M:%S')
     y_seconds = datetime.timedelta(hours=y.tm_hour,minutes=y.tm_min,seconds=y.tm_sec).total_seconds()
 
-    input_fps, input_frame_count, width, height = get_fps_frame_count_width_height(config.input_video_path)
+    if has_input_video:
+        input_fps, input_frame_count, width, height = get_fps_frame_count_width_height(config.input_video_path)
+        input_duration = input_frame_count/input_fps
+        output_duration = min(input_duration, y_seconds - x_seconds)
+        intermediate_frame_count = config.fps * output_duration
+        print("Frames to be processed:", intermediate_frame_count)
 
     if config.width != 0: width = config.width
     if config.height != 0: height = config.height
@@ -72,35 +83,29 @@ def vid2vid(
 
     config.W = width_64
     config.H = height_64
-    
-    input_duration = input_frame_count/input_fps
-
-    output_duration = min(input_duration, y_seconds - x_seconds)
-    intermediate_frame_count = config.fps * output_duration
-
-    print("Frames to be processed:", intermediate_frame_count)
+   
     ###################################################
-
 
     if start_time == "": start_time = "00:00:00"
     if end_time == "00:00:00": end_time = ""
 
     cmd_time_string = (f"-ss {start_time}" + f" -to {end_time}" if len(end_time) else "")
 
-    input_file_path = os.path.normpath(config.input_video_path.strip())
-    ffmpeg_decoder = FFMPEGProcessor(
-                " ".join(
-                    [
-                        str(config.ffmpeg_path) +  " -y -loglevel error",
-                        f'{cmd_time_string} -i "{input_file_path}"',
-                        "-vf eq=brightness=0.06:saturation=4",
-                        f"-s:v {width_64}x{height_64} -r {config.fps}",
-                        "-f image2pipe -pix_fmt rgb24",
-                        "-vcodec rawvideo -",
-                    ]
-                ),
-                std_out=True,
-            )
+    if has_input_video:
+        input_file_path = os.path.normpath(config.input_video_path.strip())
+        ffmpeg_decoder = FFMPEGProcessor(
+                    " ".join(
+                        [
+                            str(config.ffmpeg_path) +  " -y -loglevel error",
+                            f'{cmd_time_string} -i "{input_file_path}"',
+                            "-vf eq=brightness=0.06:saturation=4",
+                            f"-s:v {width_64}x{height_64} -r {config.fps}",
+                            "-f image2pipe -pix_fmt rgb24",
+                            "-vcodec rawvideo -",
+                        ]
+                    ),
+                    std_out=True,
+                )
 
     output_file_name = f"Video_{os.path.basename(config.input_video_path).split('.')[0]}_{date_time}.mp4"
 
@@ -130,7 +135,10 @@ def vid2vid(
 
     frame_count = 1
     in_frame_count = 1
-    raw_image = ffmpeg_decoder.read(read_byte_count)
+
+    raw_image = []
+    if has_input_video:
+        raw_image = ffmpeg_decoder.read(read_byte_count)
 
     if config.seed == -1:
         config.seed = np.random.randint(1,2**16)
@@ -146,9 +154,9 @@ def vid2vid(
     overlap_input_frames = []
     # secondary_inference_steps = config.steps #  int((1-1/5)*config.steps)
     epoch = 0
-    last_output_frame = None # This frame is used to cause similarity between epochs
+    last_output_frames = None # This frame is used to cause similarity between epochs
     ### MAIN LOOP: 
-    while len(raw_image):
+    while len(raw_image) or frame_count <= total_frames:
         pil_images_batch = []
         add_frames_count = original_frame_count
         if len(overlap_frames) > 0:
@@ -157,29 +165,29 @@ def vid2vid(
             config.overlap = True
             config.overlaps = len(overlap_frames)
 
-        for i in range(add_frames_count):
-            if len(raw_image):
-                pil_image = Image.fromarray(
-                    np.uint8(raw_image).reshape((height_64, width_64, 3)), mode="RGB"
-                    )
-                pil_images_batch.append(pil_image)
+        
+        if has_input_video:
+            for i in range(add_frames_count):
+                if len(raw_image):
+                    pil_image = Image.fromarray(
+                        np.uint8(raw_image).reshape((height_64, width_64, 3)), mode="RGB"
+                        )
+                    pil_images_batch.append(pil_image)
 
-            raw_image = ffmpeg_decoder.read(read_byte_count)
+                raw_image = ffmpeg_decoder.read(read_byte_count)
 
-        # print("ADDING FRAMES:", len(pil_images_batch) , len(overlap_frames))
-
-        config.L = len(pil_images_batch)
-        config.frame_count = len(pil_images_batch)
+        config.L = len(pil_images_batch) if has_input_video else int(config.frame_count)
+        config.frame_count = len(pil_images_batch) if has_input_video else int(config.frame_count)
 
         if len(overlap_frames) > 0: config.strength = config.overlap_strength
         
         config.epoch = epoch
         epoch+=1
 
-        frames = animate_pipeline.animate(pil_images_batch, last_output_frame, config)
+        frames = animate_pipeline.animate(pil_images_batch, last_output_frames, config)
 
-        last_output_frame = frames[-1]
-
+        if overlap_length > 0:
+            last_output_frames = frames[-overlap_length:]
 
         for i, frame in enumerate(overlap_frames):
             frames[i] = Image.blend(frames[i], frame, (len(overlap_frames)-i-0.5)/len(overlap_frames))
@@ -189,16 +197,17 @@ def vid2vid(
             overlap_input_frames = pil_images_batch[-overlap_length:]
 
 
+        output_frame_count = len(pil_images_batch)-len(overlap_frames) if frame_count + len(pil_images_batch) < intermediate_frame_count else len(pil_images_batch) 
+
         frames_out_upsacled = []
         if upscale > 1 and upscaler is None:
             upscaler = Upscaler(upscale, use_face_enhancer=use_face_enhancer, upscale_first=bool(config.upscale_first))
-        for frame in frames[:(len(pil_images_batch)-len(overlap_frames))]:
+        for frame in frames[:output_frame_count]:
             frame_out = frame
             if upscaler is not None:
                 frame_out = upscaler(frame_out)
 
             frames_out_upsacled.append(frame_out)
-
 
         if save_frames:
             dir = os.path.join(config.output_video_dir, f'vid2vid_frames_{date_time}')
@@ -210,9 +219,10 @@ def vid2vid(
                 with open(os.path.join(dir, 'info.json'), 'w') as f:
                     params = OmegaConf.to_container(config, resolve=True)
                     json.dump(params, f, indent=2)
-            for frame in pil_images_batch[:(len(pil_images_batch)-len(overlap_frames))]:
-                frame.save(os.path.join(dir_in_frames,"{:04d}.png".format(in_frame_count)))
-                in_frame_count+=1
+            if has_input_video:
+                for frame in pil_images_batch[:output_frame_count]:
+                    frame.save(os.path.join(dir_in_frames,"{:04d}.png".format(in_frame_count)))
+                    in_frame_count+=1
             for frame in frames_out_upsacled:
                 frame.save(os.path.join(dir,"{:04d}.png".format(frame_count)))
                 frame_count+=1
@@ -226,16 +236,17 @@ def vid2vid(
     # Waiting for io processes ...
     time.sleep(5)
 
+    if has_input_video:
     # Adding audio to the final video
-    output_w_audio_file_name = 'Audio' + output_file_name
-    final_process = video_to_high_fps(output_w_audio_file_name, # Name of the final output
-                    os.path.join(config.output_video_dir,output_file_name), # Video to add audio
-                    input_file_path, # Input video to use its audio
-                    config.output_video_dir, # Save location
-                    cmd_time_string,
-                    config.fps_ffmpeg, 
-                    config.crf,
-                    ffmpeg_path=config.ffmpeg_path
+        output_w_audio_file_name = 'Audio' + output_file_name
+        final_process = video_to_high_fps(output_w_audio_file_name, # Name of the final output
+                        os.path.join(config.output_video_dir,output_file_name), # Video to add audio
+                        input_file_path, # Input video to use its audio
+                        config.output_video_dir, # Save location
+                        cmd_time_string,
+                        config.fps_ffmpeg, 
+                        config.crf,
+                        ffmpeg_path=config.ffmpeg_path
                     )
 
     return final_process
@@ -243,5 +254,5 @@ def vid2vid(
 if __name__ == '__main__':
     # Running some basic tests...
     vid2vid(
-         config_path='configs/prompts/SampleConfigLCM.yaml')
+         config_path='configs/prompts/SampleConfigLCMLoRA.yaml')
     
