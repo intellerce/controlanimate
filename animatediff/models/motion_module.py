@@ -272,10 +272,13 @@ class VersatileAttention(CrossAttention):
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
         batch_size, sequence_length, _ = hidden_states.shape
 
+        if encoder_hidden_states is not None:
+            print("INSIDE ATTENTION:", type(self.processor).__name__, encoder_hidden_states.shape)
+
         input_ndim = hidden_states.ndim
-        # if input_ndim == 4:
-        #     batch_size, channel, height, width = hidden_states.shape
-        #     hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
+        if input_ndim == 4:
+            batch_size, channel, height, width = hidden_states.shape
+            hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
 
         if self.attention_mode == "Temporal":
             d = hidden_states.shape[1]
@@ -314,62 +317,11 @@ class VersatileAttention(CrossAttention):
                 attention_mask = attention_mask.repeat_interleave(self.heads, dim=0)
 
 
-        # batch_size, key_tokens, _ = (
-        #     hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
-        # )
-        # print("BATCH SIZE:", batch_size, key_tokens)
 
-        # attention_mask = self.prepare_attention_mask(attention_mask, key_tokens, batch_size)
-        # if attention_mask is not None:
-        #     # expand our mask's singleton query_tokens dimension:
-        #     #   [batch*heads,            1, key_tokens] ->
-        #     #   [batch*heads, query_tokens, key_tokens]
-        #     # so that it can be added as a bias onto the attention scores that xformers computes:
-        #     #   [batch*heads, query_tokens, key_tokens]
-        #     # we do this explicitly because xformers doesn't broadcast the singleton dimension for us.
-        #     _, query_tokens, _ = hidden_states.shape
-        #     attention_mask = attention_mask.expand(-1, query_tokens, -1)
-
-        # attention, what we cannot get enough of
-        # if self._use_memory_efficient_attention_xformers:
-        #     hidden_states = self._memory_efficient_attention_xformers(query, key, value, attention_mask)
-        #     # Some versions of xformers return output in fp32, cast it back to the dtype of the input
-        #     hidden_states = hidden_states.to(query.dtype)
-        # else:
-        #     if self._slice_size is None or query.shape[0] // self._slice_size == 1:
-        #         hidden_states = self._attention(query, key, value, attention_mask)
-        #     else:
-        #         hidden_states = self._sliced_attention(query, key, value, sequence_length, dim, attention_mask)
-
-        
-
-        # query = self.head_to_batch_dim(query).contiguous()
-        # key = self.head_to_batch_dim(key).contiguous()
-        # value = self.head_to_batch_dim(value).contiguous()
-
-        # hidden_states = xformers.ops.memory_efficient_attention(
-        #     query, key, value, attn_bias=attention_mask, op= None, scale=self.scale #self.attention_op
-        # )
-        # hidden_states = hidden_states.to(query.dtype)
+        hidden_states = self.processor(self, hidden_states = hidden_states, encoder_hidden_states= encoder_hidden_states, attention_mask= attention_mask)
         # hidden_states = self.batch_to_head_dim(hidden_states)
+        hidden_states = hidden_states.to(query.dtype)
 
-        attention_probs = self.get_attention_scores(query, key, attention_mask)
-        hidden_states = torch.bmm(attention_probs, value)
-        hidden_states = self.batch_to_head_dim(hidden_states)
-
-
-
-        # hidden_states = self.processor(self, encoder_hidden_states, attention_mask= attention_mask)
-        # hidden_states = hidden_states.to(query.dtype)
-        
-        # linear proj
-        hidden_states = self.to_out[0](hidden_states)
-
-        # dropout
-        hidden_states = self.to_out[1](hidden_states)
-
-        # if input_ndim == 4:
-        #     hidden_states = hidden_states.transpose(-1, -2).reshape(batch_size, channel, height, width)
 
         if self.attention_mode == "Temporal":
             hidden_states = rearrange(hidden_states, "(b d) f c -> (b f) d c", d=d)

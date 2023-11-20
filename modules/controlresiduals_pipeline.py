@@ -12,6 +12,7 @@ import torch
 import datetime
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 from einops import rearrange
 from transformers import pipeline
 from diffusers import  ControlNetModel
@@ -34,11 +35,13 @@ class MultiControlNetResidualsPipeline:
             # ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-openpose", torch_dtype=torch.float16),
             # ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-canny", torch_dtype=torch.float16),
 
-        self.multicontrolnet = MultiControlNetModel(self.controlnets).to('cuda')
+        self.controlnet = MultiControlNetModel(self.controlnets).to('cuda')
 
         self.cond_scale = cond_scale
 
         self.use_lcm = use_lcm
+        
+        self.ip_adapter = None
 
         # self.multicontrolnet.to('cpu')
 
@@ -224,10 +227,14 @@ class MultiControlNetResidualsPipeline:
                             control_image_processor,
                             epoch = 0,
                             output_dir = 'tmp/output',
-                            save_outputs = True
+                            save_outputs = True,
+                            do_classifier_free_guidance = True,
+                            guess_mode = False,
                             ):
 
         # print(date_time)
+
+        # self.input_images = images
 
         output_dir = os.path.join(output_dir, f'controlnet_outputs_{self.date_time}')
         
@@ -235,7 +242,7 @@ class MultiControlNetResidualsPipeline:
         
         
 
-        self.multicontrolnet.to('cuda')
+        self.controlnet.to('cuda')
 
         prep_images = []
         for ctrl_name in self.controlnet_names:
@@ -245,21 +252,19 @@ class MultiControlNetResidualsPipeline:
 
             self.move_to_device(ctrl_name, 'cuda')
             ctrl_images = None
-            for i, image in enumerate(images):
+            for i, image in tqdm(enumerate(images)):
                 width, height = image.size
                 prep_image = self.prepare_controlnet_input_image(ctrl_name, image)
                 if save_outputs:
                     prep_image.save(os.path.join(out_dir,"{}_{:04d}.png".format(epoch,i)))
-                prep_image = self.prepare_images([prep_image], width, height ,1,1,'cuda',self.multicontrolnet)
+                prep_image = self.prepare_images([prep_image], width, height ,1,1,'cuda',self.controlnet)
                 if ctrl_images is not None:
                     ctrl_images = torch.cat([ctrl_images, prep_image[0]])
                 else:
                     ctrl_images = prep_image[0]
             
             
-            # TODO
-            do_classifier_free_guidance = True
-            guess_mode = False
+             
             if do_classifier_free_guidance and not guess_mode and not self.use_lcm:
                 ctrl_images = torch.cat([ctrl_images] * 2)
 
@@ -275,13 +280,18 @@ class MultiControlNetResidualsPipeline:
                  t,
                  controlnet_prompt_embeds, 
                  frame_count,
-                 guess_mode = False):
+                 image_embeds = None,
+                 do_classifier_free_guidance = True,
+                 guess_mode = True):
         
         control_model_input = rearrange(control_model_input, 'b c f h w -> (b f) c h w' )
 
+        # IP Adapter
+        # if self.ip_adapter is not None:
+
         controlnet_prompt_embeds = torch.cat([controlnet_prompt_embeds] * frame_count)
 
-        down_block_res_samples_multi, mid_block_res_sample_multi = self.multicontrolnet(
+        down_block_res_samples_multi, mid_block_res_sample_multi = self.controlnet(
             control_model_input.half(), #[:,:,i,:,:].half(),
             t,
             encoder_hidden_states=controlnet_prompt_embeds.half(),

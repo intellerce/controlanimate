@@ -1,6 +1,6 @@
 #!/bin/bash
 
-config="configs/prompts/SampleConfig.yaml"
+config="configs/prompts/SampleConfigIPAdapter.yaml"
 
 echo "Running ${config} ..."
 

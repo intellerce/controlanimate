@@ -19,6 +19,7 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from animatediff.models.unet import UNet3DConditionModel
 from modules.controlresiduals_pipeline import MultiControlNetResidualsPipeline
 from animatediff.pipelines.controlanimation_pipeline import ControlAnimationPipeline #, LCMScheduler
+from modules.ip_adapter import IPAdapter, IPAdapterPlus, IPAdapterFull
 
 
 class ControlAnimatePipeline():
@@ -34,9 +35,9 @@ class ControlAnimatePipeline():
         text_encoder = CLIPTextModel.from_pretrained(model_config.pretrained_model_path, subfolder="text_encoder")
 
         if model_config.vae_path == "":
-            vae          = AutoencoderKL.from_pretrained(model_config.pretrained_model_path, subfolder="vae")            
+            vae          = AutoencoderKL.from_pretrained(model_config.pretrained_model_path, subfolder="vae")           
         else:
-            vae          = AutoencoderKL.from_single_file(model_config.vae_path)     
+            vae          = AutoencoderKL.from_single_file(model_config.vae_path)    
 
         if not self.use_lcm:
             unet         = UNet3DConditionModel.from_pretrained_2d(model_config.pretrained_model_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(self.inference_config.unet_additional_kwargs))
@@ -72,6 +73,16 @@ class ControlAnimatePipeline():
             ).to("cuda")
 
 
+        # IP Adapter Addition
+        self.use_ipadapter = bool(config.use_ipadapter)
+        if self.use_ipadapter:
+            image_encoder_path = "models/IP-Adapter/models/image_encoder/"
+            ip_ckpt =  "models/IP-Adapter/models/ip-adapter_sd15.bin" # "models/IP-Adapter/models/ip-adapter-plus_sd15.bin" # config.ipadapter_ckpt # "models/IP-Adapter/models/ip-adapter_sd15.bin"
+            main_ip_pipe = IPAdapter(pipeline, image_encoder_path, ip_ckpt, 'cuda', num_tokens=4) # IPAdapterPlus(pipeline, image_encoder_path, ip_ckpt, 'cuda', num_tokens=16)
+            pipeline.ip_adapter = main_ip_pipe
+
+            if self.multicontrolnetresiduals_pipeline is not None:
+                main_ip_pipe.set_ip_adapter_4controlanimate(self.multicontrolnetresiduals_pipeline)
 
 
         if not self.use_lcm:
@@ -94,13 +105,26 @@ class ControlAnimatePipeline():
             ).to("cuda")
 
 
+        if not self.use_lcm: 
+            self.pipeline.unet.half()
+            self.pipeline.vae.half()
+        # IP Adapter Attn Processors should not be replaced with xformer ones... # TODO
+        if not self.use_ipadapter: self.pipeline.enable_xformers_memory_efficient_attention()
+
+        if self.multicontrolnetresiduals_pipeline is not None:
+            if not self.use_lcm: self.multicontrolnetresiduals_pipeline.controlnet.half()
+            if not self.use_ipadapter: self.multicontrolnetresiduals_pipeline.controlnet.enable_xformers_memory_efficient_attention()
+
         self.pipeline.load_textual_inversion("models/TI/easynegative.safetensors", token="easynegative")
 
         self.prompt = self.pipeline.maybe_convert_prompt(config.prompt, self.pipeline.tokenizer)
         self.n_prompt = self.pipeline.maybe_convert_prompt(config.n_prompt, self.pipeline.tokenizer)
 
 
-    def animate(self, input_frames, last_output_frames, config):
+    def animate(self, input_frames, last_output_frames, config,
+                image_prompt_embeds= None,
+                uncond_image_prompt_embeds= None,
+                ):
 
         torch.manual_seed(config.seed)
         self.generator = torch.Generator(device="cpu").manual_seed(config.seed)
@@ -111,7 +135,8 @@ class ControlAnimatePipeline():
         negative_prompt_embeds = compel_proc(self.n_prompt).to('cuda')
 
         
-        print(f"# current seed: {torch.initial_seed()}")
+        # print(f"# current seed: {torch.initial_seed()}")
+        print("CONFIG: ", config)
 
         sample = self.pipeline(
             # prompt                  = self.prompt,
@@ -132,7 +157,9 @@ class ControlAnimatePipeline():
             output_dir = config.output_video_dir,
             save_outputs = bool(config.save_frames),
             last_output_frames = last_output_frames,
-            use_lcm = self.use_lcm
+            use_lcm = self.use_lcm,
+            guess_mode = bool(config.guess_mode),
+            ipa_scale = config.ipa_scale,
         ).videos
 
         frames = get_frames_pil_images(sample)

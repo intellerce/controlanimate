@@ -11,8 +11,27 @@ Similar to AnimateDiff it allows the use of DreamBooth/LoRA models in addition t
 
 ## News
 
+- :fire: Nov. 20, 2023 - Now supporting IP-Adapter, xformers, and Color Matching!
 - :fire: Nov. 12, 2023 - Now supporting LCM-LoRA & ControlNet for all combinations!
 - :fire: Nov. 7, 2023 - Now supporting Latent Consistency Model (LCM) - Achieving 10X performance gain!
+
+
+
+## Supported Features
+
+- :boom: IP Adapter (Used for Increasing the Similarity of Batches of AnimateDiff Frames)
+- :boom: Latent Consistency Model LoRA (LCM-LoRA)
+- :boom: Latent Consistency Model (LCM) Native
+- :boom: Multi-ControlNet can be Combined with LCM, etc.
+- :boom: Prompt Weighting and Long Prompts (Compel)
+- :boom: DreamBooth & LoRA
+- :boom: FFMPEG Interpolation
+- :boom: Color Matching Between Batches for Improved Consistency
+- :boom: Latent Overlapping (Img2Img & ControlNet) & Frame Overlapping (Blending)
+- :boom: Face Enhancement and Upscaling (GFPGAN & RealESRGAN)
+- :boom: Arbitrary Frame Rate, Duration, and Resolution Sampling of the Input Video
+- :boom: xformers Enabled
+
 
 
 ## Compatibility and Requirements
@@ -54,19 +73,16 @@ Please refer to https://github.com/damian0815/compel/blob/main/Reference.md for 
 [![ControlAnimate](./readme/result_lcm.jpg?raw=true)](https://youtu.be/4xAlnOzsj3o "ControlAnimate")
 - LCM-LoRA + Multi-ControlNet (configs/prompts/SampleConfigLCMLoRA.yaml)
 [![ControlAnimate](./readme/lcmlora.jpg?raw=true)](https://youtu.be/bsK3NuOC5z8 "ControlAnimate")
+- IP-Adapter + LCM-LoRA + Multi-ControlNet (configs/prompts/SampleConfigIPAdapter.yaml)
+[![ControlAnimate](./readme/ip_adapter.jpg?raw=true)](https://youtu.be/bhDw-2KesTg "ControlAnimate")
 
 
-https://youtu.be/bsK3NuOC5z8
 
-## Known Issues
-This is an initial release so please expect some potential bugs and issues.
-Currently, memory optimizations using xformers does not work properly (for the Motion Module only) and leads to some unclear errors. So it has been partially disabled in this release (for the Motion Modules).
-The code was tested on Linux and will not work on Windows currently (at least the FFMPEGProcessor needs to be modified).
 
 ## Todo
 - [x] GitHub Release
 - [ ] Bug Fixes and Improvements
-- [ ] Fixing xformers Issues and GPU Memory Optimization
+- [x] Fixing xformers Issues and GPU Memory Optimization
 - [ ] Windows Support
 - [ ] Interface
 
@@ -84,5 +100,6 @@ This codebase was built upon and/or inspired by the following repositories:
 [AnimateDiff](https://github.com/guoyww/AnimateDiff)
 [Diffusers](https://github.com/huggingface/diffusers)
 [Video2Video](https://github.com/Filarius/video2video)
+[Color Matcher](https://github.com/hahnec/color-matcher)
 
 The authors would like to thank Kalin Ovtcharov (Extropolis Corp.) for invaluable feedback and suggestions.
