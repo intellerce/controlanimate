@@ -13,7 +13,14 @@ import numpy as np
 from PIL import Image
 from einops import rearrange
 from subprocess import Popen, PIPE
+import torch.nn.functional as F
 
+from color_matcher import ColorMatcher
+from color_matcher.io_handler import load_img_file, save_img_file, FILE_EXTS
+from color_matcher.normalizer import Normalizer
+
+def is_torch2_available():
+    return hasattr(F, "scaled_dot_product_attention")
 
 
 def video_to_high_fps(output_name, video_file_path, audio_path, processed_file_save_dir, time_interval, fps_ffmpeg, crf = 17, ffmpeg_path = '/usr/bin/ffmpeg'):
@@ -106,6 +113,23 @@ class FFMPEGProcessor:
             self.process.stdin.close()
 
 
+def match_colors(input_frames, ref_frame):
+    """
+    This function matches the color of the output frames with the color of the last frame of the 
+    previous batch of frames.
+    """
+    cm = ColorMatcher()
+    img_ref = Normalizer(np.asarray(ref_frame)).type_norm()
+    outputs = []
+    for frame in input_frames:
+        frame = Normalizer(np.asarray(frame)).type_norm()
+        img_res = cm.transfer(src=frame, ref=img_ref, method='default') # 'default', 'hm', 'reinhard', 'mvgd', 'mkl', 'hm-mvgd-hm', 'hm-mkl-hm'
+        img_res = Normalizer(img_res).uint8_norm()
+        outputs.append(Image.fromarray(img_res))
+
+    return outputs
+
+
 if __name__ == '__main__':
 
     start_time = "00:00:00"
@@ -123,3 +147,8 @@ if __name__ == '__main__':
                 60, 
                 17
                 )
+    
+
+
+
+

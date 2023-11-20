@@ -146,14 +146,14 @@ def load_weights(
         # assert lora_model_path.endswith(".safetensors")
 
 
-        lora_state_dict = {}
-        with safe_open(lora_model_path, framework="pt", device="cpu") as f:
-            for key in f.keys():
-                # print("LORA KEY:", key)
-                lora_state_dict[key] = f.get_tensor(key)
+        # lora_state_dict = {}
+        # with safe_open(lora_model_path, framework="pt", device="cpu") as f:
+        #     for key in f.keys():
+        #         lora_state_dict[key] = f.get_tensor(key)
 
 
         animation_pipeline.load_lora_weights(lora_model_path) #, weight_name="pytorch_lora_weights.safetensors"
+        animation_pipeline.fuse_lora(lora_scale=lora_alpha)
 
         
         

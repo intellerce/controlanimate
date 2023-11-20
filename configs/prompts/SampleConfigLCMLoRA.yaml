@@ -13,7 +13,7 @@ save_frames: 1 # 0: No, 1: Yes
 width: 512
 height: 768
 
-prompt: "A woman with perfect++ face++ (female villain)+, (perfect face)++, (perfect eyes)++ (plain bright golden room)+++ (muscle body)0.2, fully dressed, (gold pants)++ , (gold suit)++ (gold shirt)+ (golden clothes)++, (sharp features)+, (intense eyes)+, (commanding posture)+, (aura of malevolence and mystery)+, (phenomenal aesthetic)+, sumptuous artwork, breath of the wild, masterpiece, best quality, sharp focus, dramatic lighting, 8k, uhd, dslr, vivid color, cinematic lighting , matte painting , cinematic photo, realistic photo, body photo, walking forward, high quality"
+prompt: "(Highest quality)+++ detailed++ (blurred background)+ bright++ daylight+++ noon+ A woman+ with perfect++ face++ (female villain)+, (perfect face)++, (perfect eyes)++ (muscle body)0.2, fully dressed, (sharp features)+, (intense eyes)+, (commanding posture)+, (aura of malevolence and mystery)+, (phenomenal aesthetic)+, sumptuous artwork, breath of the wild, masterpiece, best quality, sharp focus, dramatic lighting, 8k, uhd, dslr, vivid color, cinematic lighting , matte painting , cinematic photo, realistic photo, body photo, walking forward, high quality"
 n_prompt: "easynegative+, nudity, tint, blue tint, blue, mask++, (bad face)+++, (worst quality)+, (low quality)+, lowres, bad anatomy, (monochrome)++, (grayscale)+, (text, font, logo, copyright, watermark)++, wrong face, wrong hands, wrong legs, wrong feet, (nsfw,nude)+"
 
 # Additional Basic Parameters
@@ -21,7 +21,7 @@ start_time: "00:00:01" # Time in HH:MM:SS format to start reading the input vide
 end_time: "00:00:05" # Time in HH:MM:SS format to stop reading the input video
 
 # Use the last frame of each AnimateDiff output sequence as reference for the next epoch using the following img2img strength
-overlap_strength: 0.92
+overlap_strength: 1.0
 
 
 use_lcm: 0 # 0: No, 1: Yes - Use original LCM model. If used, the settings related to LoRA and DreamBooth will be ignored as LCM models do not support them.
@@ -39,7 +39,7 @@ pretrained_model_path: "models/StableDiffusion/stable-diffusion-v1-5"
 vae_path: "models/VAE/vae-ft-mse-840000-ema-pruned.ckpt" #"models/VAE/vae-ft-ema-560000-ema-pruned.safetensors"
 
 # Optional DreamBooth Model (full)
-dreambooth_path: "models/DreamBooth_LoRA/dreamshaper_8.safetensors" 
+dreambooth_path: "models/DreamBooth_LoRA/aZovyaRPGArtistTools_v3.safetensors" 
 
 # Optional LoRA model to be used
 lora_model_path: "models/DreamBooth_LoRA/lcm_lora.safetensors" #models/DreamBooth_LoRA/genshin_impact_yoimiya.safetensors  "latent-consistency/lcm-lora-sdv1-5"
@@ -52,34 +52,43 @@ motion_module: "models/Motion_Module/mm_sd_v15_v2.ckpt"
 # Optional ControlNet Models to be used - will be downloaded automatically
 controlnets:
   - lllyasviel/control_v11p_sd15_openpose
-  - lllyasviel/control_v11p_sd15_lineart
-  - lllyasviel/control_v11p_sd15_mlsd
-  # - lllyasviel/sd-controlnet-canny
+  # - lllyasviel/control_v11p_sd15_lineart
+  # # - lllyasviel/control_v11p_sd15_mlsd
+  # # - lllyasviel/sd-controlnet-canny
   # - lllyasviel/control_v11p_sd15_softedge
-  # - lllyasviel/sd-controlnet-mlsd
-  # - lllyasviel/sd-controlnet-openpose
+  - lllyasviel/sd-controlnet-mlsd
+  # # - lllyasviel/sd-controlnet-openpose
   # - lllyasviel/control_v11p_sd15s2_lineart_anime
   # - lllyasviel/sd-controlnet-hed
 
 cond_scale:
   - 1.0
-  - 0.2
-  - .75
-  # - 0.4
+  - 0.75
+  - 0.65
+  - 1.0
+  - 0.75
+  - 0.5
 
+guess_mode: 0 # 0: No, 1: Yes - To use guess mode in controlnet or not.
 
 ######################################################
 # PARAMETERS
 ######################################################
 
-upscale: 4 # Upscaler value for the input image
-use_face_enhancer: 1 # 0: No, 1: Yes
-upscale_first: 1 # Upscale before applying face enhancement - better results but slower: 0: No, 1: Yes
+# IP-Adapter:
+use_ipadapter: 0 # 0: No, 1: Yes
+ipa_scale: 0.65 # Strength of IP-Adapter
+do_initial_generation: 1 # 0: No, 1: Yes -> Generate a few initial frames to be used as baseline for the next image generations.
+
+
+upscale: 1 # Upscaler value for the input image
+use_face_enhancer: 0 # 0: No, 1: Yes
+upscale_first: 0 # Upscale before applying face enhancement - better results but slower: 0: No, 1: Yes
  
 frame_count: 16 # How many co-related frames are produced by AnimateDiff - defaults to 16
 overlap_length: 8 # Number of frames from previous output frames to be present in the current frames (helps with consistency)
 
-seed: 16086  # -1
+seed: 19203 # -1  #16086  # -1
 steps: 7
 guidance_scale: 1.1
 strength: 1.0 # Strengtht of the noise to be added to input latents - if 1.0 the img2img effect is nil
@@ -89,8 +98,8 @@ strength: 1.0 # Strengtht of the noise to be added to input latents - if 1.0 the
 scheduler:  "LCMScheduler"
 
 
-fps: 15 # The framerate to sample the input video
-fps_ffmpeg: 30 # The framerate of the output video
+fps: 12 # The framerate to sample the input video
+fps_ffmpeg: 24 # The framerate of the output video
 crf: 23 # A measure of quality - lower is better 
 
 

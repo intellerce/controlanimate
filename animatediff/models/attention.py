@@ -21,6 +21,22 @@ from diffusers.utils import USE_PEFT_BACKEND
 from einops import rearrange, repeat
 import pdb
 
+
+
+from importlib import import_module
+from typing import Callable, Optional, Union
+
+import torch
+import torch.nn.functional as F
+from torch import nn
+
+from diffusers.utils import USE_PEFT_BACKEND, deprecate, logging
+from diffusers.utils.import_utils import is_xformers_available
+from diffusers.utils.torch_utils import maybe_allow_in_graph
+from diffusers.models.lora import LoRACompatibleLinear, LoRALinearLayer
+
+from diffusers.models.attention_processor import *
+
 @dataclass
 class Transformer3DModelOutput(BaseOutput):
     sample: torch.FloatTensor
@@ -151,10 +167,10 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         return Transformer3DModelOutput(sample=output)
 
 
-class BasicTransformerBlock(nn.Module):
+class BasicTransformerBlock(CrossAttention):
     def __init__(
         self,
-        dim: int,
+        query_dim: int,
         num_attention_heads: int,
         attention_head_dim: int,
         dropout=0.0,
@@ -168,7 +184,7 @@ class BasicTransformerBlock(nn.Module):
         unet_use_cross_frame_attention = None,
         unet_use_temporal_attention = None,
     ):
-        super().__init__()
+        super().__init__(query_dim=query_dim)
         self.only_cross_attention = only_cross_attention
         self.use_ada_layer_norm = num_embeds_ada_norm is not None
         self.unet_use_cross_frame_attention = unet_use_cross_frame_attention
@@ -178,7 +194,7 @@ class BasicTransformerBlock(nn.Module):
         assert unet_use_cross_frame_attention is not None
         if unet_use_cross_frame_attention:
             self.attn1 = SparseCausalAttention2D(
-                query_dim=dim,
+                query_dim=query_dim,
                 heads=num_attention_heads,
                 dim_head=attention_head_dim,
                 dropout=dropout,
@@ -188,19 +204,19 @@ class BasicTransformerBlock(nn.Module):
             )
         else:
             self.attn1 = CrossAttention(
-                query_dim=dim,
+                query_dim=query_dim,
                 heads=num_attention_heads,
                 dim_head=attention_head_dim,
                 dropout=dropout,
                 bias=attention_bias,
                 upcast_attention=upcast_attention,
             )
-        self.norm1 = AdaLayerNorm(dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(dim)
+        self.norm1 = AdaLayerNorm(query_dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(query_dim)
 
         # Cross-Attn
         if cross_attention_dim is not None:
             self.attn2 = CrossAttention(
-                query_dim=dim,
+                query_dim=query_dim,
                 cross_attention_dim=cross_attention_dim,
                 heads=num_attention_heads,
                 dim_head=attention_head_dim,
@@ -212,19 +228,19 @@ class BasicTransformerBlock(nn.Module):
             self.attn2 = None
 
         if cross_attention_dim is not None:
-            self.norm2 = AdaLayerNorm(dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(dim)
+            self.norm2 = AdaLayerNorm(query_dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(query_dim)
         else:
             self.norm2 = None
 
         # Feed-forward
-        self.ff = FeedForward(dim, dropout=dropout, activation_fn=activation_fn)
-        self.norm3 = nn.LayerNorm(dim)
+        self.ff = FeedForward(query_dim, dropout=dropout, activation_fn=activation_fn)
+        self.norm3 = nn.LayerNorm(query_dim)
 
         # Temp-Attn
         assert unet_use_temporal_attention is not None
         if unet_use_temporal_attention:
             self.attn_temp = CrossAttention(
-                query_dim=dim,
+                query_dim=query_dim,
                 heads=num_attention_heads,
                 dim_head=attention_head_dim,
                 dropout=dropout,
@@ -232,36 +248,9 @@ class BasicTransformerBlock(nn.Module):
                 upcast_attention=upcast_attention,
             )
             nn.init.zeros_(self.attn_temp.to_out[0].weight.data)
-            self.norm_temp = AdaLayerNorm(dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(dim)
+            self.norm_temp = AdaLayerNorm(query_dim, num_embeds_ada_norm) if self.use_ada_layer_norm else nn.LayerNorm(query_dim)
 
-    def set_use_memory_efficient_attention_xformers(self, use_memory_efficient_attention_xformers: bool):
-        if not is_xformers_available():
-            print("Here is how to install it")
-            raise ModuleNotFoundError(
-                "Refer to https://github.com/facebookresearch/xformers for more information on how to install"
-                " xformers",
-                name="xformers",
-            )
-        elif not torch.cuda.is_available():
-            raise ValueError(
-                "torch.cuda.is_available() should be True but is False. xformers' memory efficient attention is only"
-                " available for GPU "
-            )
-        else:
-            try:
-                # Make sure we can run the memory efficient attention
-                _ = xformers.ops.memory_efficient_attention(
-                    torch.randn((1, 2, 40), device="cuda"),
-                    torch.randn((1, 2, 40), device="cuda"),
-                    torch.randn((1, 2, 40), device="cuda"),
-                )
-            except Exception as e:
-                raise e
-            self.attn1._use_memory_efficient_attention_xformers = use_memory_efficient_attention_xformers
-            if self.attn2 is not None:
-                self.attn2._use_memory_efficient_attention_xformers = use_memory_efficient_attention_xformers
-            # self.attn_temp._use_memory_efficient_attention_xformers = use_memory_efficient_attention_xformers
-
+    
     def forward(self, hidden_states, encoder_hidden_states=None, timestep=None, attention_mask=None, video_length=None):
         # SparseCausal-Attention
         norm_hidden_states = (
@@ -283,6 +272,8 @@ class BasicTransformerBlock(nn.Module):
 
         if self.attn2 is not None:
             # Cross-Attention
+
+            # print("INSIDE ATTENTION:", type(self.attn2.processor).__name__, encoder_hidden_states.shape)
             norm_hidden_states = (
                 self.norm2(hidden_states, timestep) if self.use_ada_layer_norm else self.norm2(hidden_states)
             )

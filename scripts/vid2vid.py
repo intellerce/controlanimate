@@ -24,6 +24,7 @@ from modules.upscaler import Upscaler
 from modules.controlanimate_pipeline import ControlAnimatePipeline 
 from modules.utils import video_to_high_fps, get_fps_frame_count_width_height, FFMPEGProcessor
 
+from modules.utils import match_colors
 
 ####################################################################
 # The following is the main function of this program
@@ -112,9 +113,12 @@ def vid2vid(
     if not os.path.exists(config.output_video_dir):
         os.makedirs(config.output_video_dir)
 
-    if upscale > 1 and upscaler is None:
-            width_64_out = int(upscale * width_64)
-            height_64_out = int(upscale * height_64)
+    assert upscale >= 1, "Upscale factor should be greater than or equal to one."
+
+    width_64_out = int(upscale * width_64)
+    height_64_out = int(upscale * height_64)
+
+        
 
     ffmpeg_encoder = FFMPEGProcessor(
                 " ".join(
@@ -155,8 +159,13 @@ def vid2vid(
     # secondary_inference_steps = config.steps #  int((1-1/5)*config.steps)
     epoch = 0
     last_output_frames = None # This frame is used to cause similarity between epochs
+    last_output_frame = None
+
+    done_ip_adapter_initial_generation = not bool(config.do_initial_generation)
+
+
     ### MAIN LOOP: 
-    while len(raw_image) or frame_count <= total_frames:
+    while frame_count < intermediate_frame_count or frame_count <= total_frames:
         pil_images_batch = []
         add_frames_count = original_frame_count
         if len(overlap_frames) > 0:
@@ -179,18 +188,42 @@ def vid2vid(
         config.L = len(pil_images_batch) if has_input_video else int(config.frame_count)
         config.frame_count = len(pil_images_batch) if has_input_video else int(config.frame_count)
 
-        if len(overlap_frames) > 0: config.strength = config.overlap_strength
+        if len(overlap_frames) > 0: 
+            config.strength = config.overlap_strength
+            pil_images_batch[:len(overlap_frames)] = overlap_frames
         
         config.epoch = epoch
         epoch+=1
 
-        frames = animate_pipeline.animate(pil_images_batch, last_output_frames, config)
+        if not done_ip_adapter_initial_generation:
+            print("Performing an initial round to acquire a baseline for the IP Adapter...")
+            frames = animate_pipeline.animate(pil_images_batch, last_output_frames, config)
+            last_output_frame = frames[0]
+
+            
+            config.strength = config.overlap_strength
+            config.overlaps = len(frames[-overlap_length:])
+            # pil_images_batch[0].show()
+            frames = animate_pipeline.animate(pil_images_batch, 
+                                              frames[-overlap_length:].copy(), 
+                                              config,
+                                              )
+            done_ip_adapter_initial_generation = True
+        else:
+            frames = animate_pipeline.animate(pil_images_batch, last_output_frames, config)
+
+        if last_output_frame is not None:
+            print(">>> Matching colors...")
+            frames = match_colors(frames, last_output_frame)
+
+        # last_output_frame = frames[max(overlap_length-1,-1)]
 
         if overlap_length > 0:
             last_output_frames = frames[-overlap_length:]
 
         for i, frame in enumerate(overlap_frames):
             frames[i] = Image.blend(frames[i], frame, (len(overlap_frames)-i-0.5)/len(overlap_frames))
+            # frames[i] = Image.blend(frames[i], frame, 1.0)
 
         if overlap_length > 0:
             overlap_frames = frames[-overlap_length:]
@@ -199,7 +232,7 @@ def vid2vid(
 
         output_frame_count = len(pil_images_batch)-len(overlap_frames) if frame_count + len(pil_images_batch) < intermediate_frame_count else len(pil_images_batch) 
 
-        frames_out_upsacled = []
+        frames_out_upsacaled = []
         if upscale > 1 and upscaler is None:
             upscaler = Upscaler(upscale, use_face_enhancer=use_face_enhancer, upscale_first=bool(config.upscale_first))
         for frame in frames[:output_frame_count]:
@@ -207,7 +240,7 @@ def vid2vid(
             if upscaler is not None:
                 frame_out = upscaler(frame_out)
 
-            frames_out_upsacled.append(frame_out)
+            frames_out_upsacaled.append(frame_out)
 
         if save_frames:
             dir = os.path.join(config.output_video_dir, f'vid2vid_frames_{date_time}')
@@ -223,18 +256,20 @@ def vid2vid(
                 for frame in pil_images_batch[:output_frame_count]:
                     frame.save(os.path.join(dir_in_frames,"{:04d}.png".format(in_frame_count)))
                     in_frame_count+=1
-            for frame in frames_out_upsacled:
+            for frame in frames_out_upsacaled:
                 frame.save(os.path.join(dir,"{:04d}.png".format(frame_count)))
                 frame_count+=1
+        else:
+            frame_count+= len(frames_out_upsacaled)
 
     
-        for frame in frames_out_upsacled:
+        for frame in frames_out_upsacaled:
             ffmpeg_encoder.write(np.asarray(frame.convert('RGB').resize((width_64_out,height_64_out))))
 
     ffmpeg_encoder.close()
     
     # Waiting for io processes ...
-    time.sleep(5)
+    time.sleep(10)
 
     if has_input_video:
     # Adding audio to the final video
@@ -248,11 +283,12 @@ def vid2vid(
                         config.crf,
                         ffmpeg_path=config.ffmpeg_path
                     )
+    time.sleep(10)
 
     return final_process
 
 if __name__ == '__main__':
     # Running some basic tests...
     vid2vid(
-         config_path='configs/prompts/SampleConfigLCMLoRA.yaml')
+         config_path='configs/prompts/SampleConfigIPAdapter.yaml')
     

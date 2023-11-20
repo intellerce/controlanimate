@@ -7,6 +7,7 @@ bash download_bashscripts/0-MotionModule.sh
 python download_bashscripts/DownloadSD.py
 python download_bashscripts/DownloadLCM.py
 python download_bashscripts/DownloadLCMLoRA.py
+python download_bashscripts/DownloadIPA.py
 bash download_bashscripts/DreamShaper8.sh
 bash download_bashscripts/VAE.sh
 

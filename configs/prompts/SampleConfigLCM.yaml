@@ -71,10 +71,19 @@ cond_scale:
   # - 1.0
   # - 0.4
 
+guess_mode: 0 # 0: No, 1: Yes - To use guess mode in controlnet or not.
 
 ######################################################
 # OTHER PARAMETERS
 ######################################################
+
+# IP-Adapter:
+use_ipadapter: 0 # 0: No, 1: Yes
+ipa_scale: 0.65 # Strength of IP-Adapter
+do_initial_generation: 1 # 0: No, 1: Yes -> Generate a few initial frames to be used as baseline for the next image generations.
+
+
+
 
 upscale: 4 # Upscaler value for the input image
 use_face_enhancer: 1 # 0: No, 1: Yes

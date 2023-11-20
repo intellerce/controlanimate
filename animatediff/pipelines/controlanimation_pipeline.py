@@ -168,6 +168,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
 
         self.prev_frames_latents = None
 
+        self.ip_adapter = None
+
     def enable_vae_slicing(self):
         self.vae.enable_slicing()
 
@@ -589,19 +591,19 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                 frames_latents_tensor = torch.stack(frames_latents,dim=2)
                 latents = self.scheduler.add_noise(frames_latents_tensor, latents.to(device), latent_timestep)
 
-            elif last_output_frames is not None:
+            elif last_output_frames is not None and strength < 1.0:
                 # for i in range(len(last_output_frames_latents)):
                 for i in range(video_length):
                     if i < len(last_output_frames):
                         latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[i], latents[:, :, i, :, :].to(device), latent_timestep)
                     else:
-                        latents[:, :, i, :, :] = latents[:, :, i, :, :] * self.scheduler.init_noise_sigma 
+                        latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[-1], latents[:, :, i, :, :].to(device), latent_timestep)
 
         
         latents = latents.to(device)
 
         # scale the initial noise by the standard deviation required by the scheduler
-        if strength >= 1 and overlaps == 0 and not use_lcm:
+        if strength >= 1 and not use_lcm:
             latents = latents * self.scheduler.init_noise_sigma 
 
         return latents
@@ -650,6 +652,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
         last_output_frames = None,
         use_lcm = True,
         lcm_origin_steps: int = 50,
+        guess_mode = False,
+        ipa_scale = 0.4,
         **kwargs,
     ):
         # Default height and width to unet
@@ -669,6 +673,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
 
         lora_scale = cross_attention_kwargs.get("scale", None) if cross_attention_kwargs is not None else None
 
+
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
@@ -680,13 +685,42 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
             lora_scale=lora_scale,
             clip_skip=clip_skip,
         )
+
+
+        print("#### PROMPT EMBED INITIAL SHAPE:", prompt_embeds.shape)
+
+        # IP Adapter
+        if self.ip_adapter is not None:
+            if last_output_frames is not None:
+                ip_image = last_output_frames[0] 
+                image_prompt_embeds, uncond_image_prompt_embeds = self.ip_adapter.get_image_embeds_4controlanimate(
+                    pil_image = ip_image, 
+                    scale = ipa_scale,
+                )
+                print("IMAGE PROMPT EMBEDS SHAPE:", image_prompt_embeds.shape, uncond_image_prompt_embeds.shape)
+                prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
+                negative_prompt_embeds = torch.cat([negative_prompt_embeds, uncond_image_prompt_embeds], dim=1)
+            else:
+                prompt_embeds = torch.cat([prompt_embeds, torch.zeros((1, 4, 768)).to(device)], dim=1)
+                negative_prompt_embeds = torch.cat([negative_prompt_embeds, torch.zeros((1, 4, 768)).to(device)], dim=1)
+
+        
+
+        print("#### PROMPT EMBED SHAPE AFTER IP ADAPTER:", prompt_embeds.shape)
+
+
         # For classifier free guidance, we need to do two forward passes.
         # Here we concatenate the unconditional and text embeddings into a single batch
-        # to avoid doing two forward passes
+        # to avoid doing two forward passes       
         lcm_prompt_embeds = prompt_embeds
         if do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
 
+
+        print("#### PROMPT EMBED SHAPE AFTER CFG:", prompt_embeds.shape)
+
+        prompt_embeds = prompt_embeds.to(dtype=self.unet.dtype, device=device)
+        
 
         # Prepare timesteps
         if use_lcm or isinstance(self.scheduler, LCMScheduler):
@@ -739,6 +773,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                                                                 epoch = epoch,
                                                                 output_dir=output_dir,
                                                                 save_outputs= save_outputs,
+                                                                do_classifier_free_guidance=do_classifier_free_guidance,
+                                                                guess_mode= guess_mode,
                                                                 )
 
 
@@ -766,10 +802,12 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                     controlnet_overlaps = 0
 
                     down_block_additional_residuals, mid_block_additional_residual = multicontrolnetresiduals_pipeline(
-                                    control_model_input = latent_model_input if not use_lcm else lcm_model_input,
+                                    control_model_input =  lcm_model_input  if use_lcm or guess_mode or not do_classifier_free_guidance else latent_model_input,
                                     t = t,
-                                    controlnet_prompt_embeds = prompt_embeds if not use_lcm else lcm_prompt_embeds, 
+                                    controlnet_prompt_embeds = lcm_prompt_embeds  if use_lcm or guess_mode or not do_classifier_free_guidance else prompt_embeds, 
                                     frame_count=len(input_frames),
+                                    do_classifier_free_guidance = do_classifier_free_guidance,
+                                    guess_mode= guess_mode
                                     # guess_mode=use_lcm
                                     # cond_scale = [0.5] * len(multicontrolnetresiduals_pipeline.controlnets),
                                     )
@@ -801,7 +839,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                    latents[:,:,:,:,:] = self.scheduler.step(noise_pred[:,:,:,:,:], t, latents[:,:,:,:,:], **extra_step_kwargs).prev_sample
+                    # latents[:,:,overlaps:,:,:] = self.scheduler.step(noise_pred[:,:,overlaps:,:,:], t, latents[:,:,overlaps:,:,:], **extra_step_kwargs).prev_sample
+                    latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
 
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
