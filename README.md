@@ -99,6 +99,7 @@ This codebase is released under the Apache v2.0 license. For the licenses of the
 This codebase was built upon and/or inspired by the following repositories:
 [AnimateDiff](https://github.com/guoyww/AnimateDiff)
 [Diffusers](https://github.com/huggingface/diffusers)
+[IP-Adapter](https://github.com/tencent-ailab/IP-Adapter)
 [Video2Video](https://github.com/Filarius/video2video)
 [Color Matcher](https://github.com/hahnec/color-matcher)
 
