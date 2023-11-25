@@ -93,8 +93,8 @@ class ControlAnimatePipeline():
                 motion_module_lora_configs = model_config.get("motion_module_lora_configs", []),
                 # image layers
                 dreambooth_model_path      = model_config.get("dreambooth_path", ""),
-                lora_model_path            = model_config.get("lora_model_path", ""),
-                lora_alpha                 = model_config.get("lora_alpha", 0.8),
+                lora_model_path            = model_config.get("lora_model_paths", "") if model_config.get("lora_model_paths", "") is not None else "",
+                lora_alpha                 = model_config.get("lora_weights", [0.8]),
             ).to("cuda")
         else:
             self.pipeline = load_weights(
@@ -160,6 +160,7 @@ class ControlAnimatePipeline():
             use_lcm = self.use_lcm,
             guess_mode = bool(config.guess_mode),
             ipa_scale = config.ipa_scale,
+            use_img2img = config.use_img2img if config.use_img2img is not None else False
         ).videos
 
         frames = get_frames_pil_images(sample)

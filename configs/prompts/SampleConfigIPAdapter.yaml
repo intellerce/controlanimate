@@ -22,14 +22,14 @@ start_time: "00:00:01" # Time in HH:MM:SS format to start reading the input vide
 end_time: "00:00:12" # Time in HH:MM:SS format to stop reading the input video
 
 # Use the last frame of each AnimateDiff output sequence as reference for the next epoch using the following img2img strength
-overlap_strength: 0.85
+overlap_strength: .85
 
 # Native LCM Model?
 use_lcm: 0 # 0: No, 1: Yes - Use original LCM model. If used, the settings related to LoRA and DreamBooth will be ignored as LCM models do not support them.
 # It worth noting that LCM does not have support for negative prompt at the moment.
 # Also, it should be noted that LCM-LoRA is different from native LCM and its usage does not disable any other features.
 
-
+use_img2img: 0 # 0: No, 1: Yes - Use img2img for non-overlapping frames. If no, then last output frame will be used as base for the added noise of non-overlapping frames.
 
 ######################################################
 # MODELS
@@ -45,8 +45,12 @@ vae_path: "models/VAE/vae-ft-mse-840000-ema-pruned.ckpt" #"models/VAE/vae-ft-ema
 dreambooth_path: "models/DreamBooth_LoRA/absolutereality_v181.safetensors"  #"models/DreamBooth_LoRA/aZovyaRPGArtistTools_v3.safetensors" 
 
 # Optional LoRA model to be used
-lora_model_path: "models/DreamBooth_LoRA/lcm_lora.safetensors" 
-lora_weight: 1.0
+lora_model_paths: 
+  - "models/DreamBooth_LoRA/lcm_lora.safetensors" 
+  # - "models/DreamBooth_LoRA/PsychedelicFluids.safetensors"
+lora_weights: 
+  - 0.8
+  # - 0.8
 
 # Motion Module to be used - versions of the config and the model must match
 inference_config_path: "configs/inference/inference-v2.yaml"
@@ -80,6 +84,7 @@ cond_scale:
 
 guess_mode: 1 # 0: No, 1: Yes - To use guess mode in controlnet or not.
 
+loop_back_frames: 1 # 0: No, 1: Yes - To use generated overlapping frames as inputs for the ControlNets or not.
 
 ######################################################
 # PARAMETERS
@@ -87,14 +92,14 @@ guess_mode: 1 # 0: No, 1: Yes - To use guess mode in controlnet or not.
 
 
 # IP-Adapter:
-use_ipadapter: 0 # 0: No, 1: Yes
+use_ipadapter: 1 # 0: No, 1: Yes
 ipa_scale: 0.65 # Strength of IP-Adapter
-do_initial_generation: 1 # 0: No, 1: Yes -> Generate a few initial frames to be used as baseline for the next image generations.
+do_initial_generation: 0 # 0: No, 1: Yes -> Generate a few initial frames to be used as baseline for the next image generations.
 
 
 # Upscaling and Face Restoration:
 upscale: 2 # Upscaler value for the input image
-use_face_enhancer: 0 # 0: No, 1: Yes
+use_face_enhancer: 1 # 0: No, 1: Yes
 upscale_first: 1 # Upscale before applying face enhancement - better results but slower: 0: No, 1: Yes
 
 frame_count: 16 # How many co-related frames are produced by AnimateDiff - defaults to 16
