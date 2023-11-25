@@ -123,7 +123,7 @@ def match_colors(input_frames, ref_frame):
     outputs = []
     for frame in input_frames:
         frame = Normalizer(np.asarray(frame)).type_norm()
-        img_res = cm.transfer(src=frame, ref=img_ref, method='default') # 'default', 'hm', 'reinhard', 'mvgd', 'mkl', 'hm-mvgd-hm', 'hm-mkl-hm'
+        img_res = cm.transfer(src=frame, ref=img_ref, method='hm-mkl-hm') # 'default', 'hm', 'reinhard', 'mvgd', 'mkl', 'hm-mvgd-hm', 'hm-mkl-hm'
         img_res = Normalizer(img_res).uint8_norm()
         outputs.append(Image.fromarray(img_res))
 

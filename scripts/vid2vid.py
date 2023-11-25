@@ -190,7 +190,8 @@ def vid2vid(
 
         if len(overlap_frames) > 0: 
             config.strength = config.overlap_strength
-            pil_images_batch[:len(overlap_frames)] = overlap_frames
+            if config.loop_back_frames:
+                pil_images_batch[:len(overlap_frames)] = overlap_frames
         
         config.epoch = epoch
         epoch+=1
@@ -216,7 +217,7 @@ def vid2vid(
             print(">>> Matching colors...")
             frames = match_colors(frames, last_output_frame)
 
-        # last_output_frame = frames[max(overlap_length-1,-1)]
+        last_output_frame = frames[max(overlap_length-1,-1)]
 
         if overlap_length > 0:
             last_output_frames = frames[-overlap_length:]

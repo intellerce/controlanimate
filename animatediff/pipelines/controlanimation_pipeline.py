@@ -551,6 +551,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                         latents=None,
                         last_output_frames = None,
                         use_lcm = False,
+                        use_img2img = False,
                         ):
         shape = (batch_size, num_channels_latents, video_length, height // self.vae_scale_factor, width // self.vae_scale_factor)
 
@@ -597,7 +598,10 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
                     if i < len(last_output_frames):
                         latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[i], latents[:, :, i, :, :].to(device), latent_timestep)
                     else:
-                        latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[-1], latents[:, :, i, :, :].to(device), latent_timestep)
+                        if not use_img2img:
+                            latents[:, :, i, :, :] = self.scheduler.add_noise(last_output_frames_latents[-1], latents[:, :, i, :, :].to(device), latent_timestep)
+                        else:
+                            latents[:, :, i, :, :] = self.scheduler.add_noise(frames_latents[i], latents[:, :, i, :, :].to(device), latent_timestep)
 
         
         latents = latents.to(device)
@@ -654,6 +658,7 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
         lcm_origin_steps: int = 50,
         guess_mode = False,
         ipa_scale = 0.4,
+        use_img2img = True,
         **kwargs,
     ):
         # Default height and width to unet
@@ -754,7 +759,8 @@ class ControlAnimationPipeline(DiffusionPipeline,  TextualInversionLoaderMixin, 
             strength,
             latents,
             last_output_frames = last_output_frames,
-            use_lcm=use_lcm
+            use_lcm=use_lcm,
+            use_img2img=use_img2img,
         )
         latents_dtype = latents.dtype
 

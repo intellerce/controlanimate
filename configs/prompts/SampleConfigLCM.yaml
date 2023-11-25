@@ -29,6 +29,8 @@ use_lcm: 1 # 0: No, 1: Yes - If used most of the settings related to LoRA, Dream
 # It is also worth noting that LCM does not have support for negative prompt at the moment.
 strength: .5 # Strengtht of the noise to be added to input latents - if 1.0 the img2img effect is nil
 
+use_img2img: 1 # 0: No, 1: Yes - Use img2img for non-overlapping frames. If no, then last output frame will be used as base for the added noise of non-overlapping frames.
+
 ######################################################
 # MODELS
 ######################################################
@@ -43,8 +45,12 @@ vae_path: "models/VAE/vae-ft-mse-840000-ema-pruned.ckpt" #"models/VAE/vae-ft-ema
 dreambooth_path: "models/DreamBooth_LoRA/dreamshaper_8.safetensors" 
 
 # Optional LoRA model to be used
-lora_model_path: "" #models/DreamBooth_LoRA/genshin_impact_yoimiya.safetensors
-lora_weight: #0.8
+lora_model_paths: 
+  # - "models/DreamBooth_LoRA/lcm_lora.safetensors" 
+  # - "models/DreamBooth_LoRA/PsychedelicFluids.safetensors"
+lora_weights: 
+  # - 1.0
+  # - 0.8
 
 # Motion Module to be used - versions of the config and the model must match
 inference_config_path: "configs/inference/inference-v1.yaml"
@@ -73,6 +79,8 @@ cond_scale:
 
 guess_mode: 0 # 0: No, 1: Yes - To use guess mode in controlnet or not.
 
+loop_back_frames: 1 # 0: No, 1: Yes - To use generated overlapping frames as inputs for the ControlNets or not.
+
 ######################################################
 # OTHER PARAMETERS
 ######################################################
@@ -99,7 +107,7 @@ guidance_scale: 7.5
 
 
 # Choice of scheduler: "DDIMScheduler", "EulerDiscreteScheduler" ,"DPMSolverMultistepScheduler","EulerAncestralDiscreteScheduler","LMSDiscreteScheduler","PNDMScheduler"
-scheduler:  "EulerDiscreteScheduler"
+scheduler:  "LCMScheduler"
 
 
 fps: 15 # The framerate to sample the input video

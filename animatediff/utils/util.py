@@ -151,9 +151,9 @@ def load_weights(
         #     for key in f.keys():
         #         lora_state_dict[key] = f.get_tensor(key)
 
-
-        animation_pipeline.load_lora_weights(lora_model_path) #, weight_name="pytorch_lora_weights.safetensors"
-        animation_pipeline.fuse_lora(lora_scale=lora_alpha)
+        for (lora, alpha) in zip(lora_model_path,lora_alpha):
+            animation_pipeline.load_lora_weights(lora) #, weight_name="pytorch_lora_weights.safetensors"
+            animation_pipeline.fuse_lora(lora_scale=alpha)
 
         
         
